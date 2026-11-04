@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION when the app shell changes a lot.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `n1q-shell-${VERSION}`;
 const EXT_CACHE = 'n1q-ext-v1';
 
@@ -32,9 +32,9 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
 
   if (url.origin === self.location.origin) {
-    // Questions and picture list: try the network first so new content shows up quickly.
-    if (url.pathname.endsWith('.json')) e.respondWith(networkFirst(req));
-    else e.respondWith(staleWhileRevalidate(req));
+    // Always try the network first (revalidating past the browser's HTTP cache) so the page,
+    // scripts and data are always the same version. The cache is only the offline fallback.
+    e.respondWith(networkFirst(req));
     return;
   }
   if (EXT_OK.some((re) => re.test(req.url))) e.respondWith(cacheFirst(req));
@@ -44,22 +44,12 @@ self.addEventListener('fetch', (e) => {
 async function networkFirst(req) {
   const cache = await caches.open(SHELL_CACHE);
   try {
-    const res = await fetch(req);
+    const res = await fetch(req, { cache: 'no-cache' });
     if (res.ok) cache.put(req, res.clone());
     return res;
   } catch {
-    return (await cache.match(req)) || Response.error();
+    return (await cache.match(req, { ignoreSearch: true })) || Response.error();
   }
-}
-
-async function staleWhileRevalidate(req) {
-  const cache = await caches.open(SHELL_CACHE);
-  const hit = await cache.match(req, { ignoreSearch: true });
-  const net = fetch(req).then((res) => {
-    if (res.ok) cache.put(req, res.clone());
-    return res;
-  }).catch(() => null);
-  return hit || (await net) || Response.error();
 }
 
 async function cacheFirst(req) {

@@ -130,6 +130,7 @@ function setTitle(num, label, score = '') {
 
 /* ---------- home ---------- */
 function renderHome() {
+  if (current !== 'home') window.dispatchEvent(new Event('n1q-home'));
   current = 'home';
   session = null;
   setTitle(null, 'ホーム');
@@ -509,7 +510,7 @@ function tick() {
   $('#date').replaceChildren(
     h('span', null, `${d.getMonth() + 1}月${d.getDate()}日`),
     h('span', null, '日月火水木金土'[d.getDay()] + '曜日'));
-  tickWidgets(d);
+  try { tickWidgets(d); } catch (err) { console.error(err); }
 }
 window.addEventListener('n1q-exam', () => { if (current === 'home') renderHome(); });
 
@@ -605,10 +606,11 @@ desktopMQ.addEventListener('change', () => { updateSide(); if (!pics.length) loa
 
 /* ---------- boot ---------- */
 async function boot() {
-  initWidgets();
+  for (const init of [initWidgets, initRadio]) {
+    try { init(); } catch (err) { console.error(err); }
+  }
   tick();
   setInterval(tick, 15000);
-  initRadio();
   screen.replaceChildren(h('p', { class: 'empty' }, 'よみこみ中…'));
   try {
     await loadData();
@@ -622,6 +624,17 @@ async function boot() {
     const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
     idle(() => loadSync().catch(() => {}));
   }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // When a new version takes over, reload once (but never in the middle of a quiz).
+    const hadController = !!navigator.serviceWorker.controller;
+    let pending = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) return;
+      if (current === 'home' || current === 'settings' || current === 'stats') location.reload();
+      else pending = true;
+    });
+    window.addEventListener('n1q-home', () => { if (pending) location.reload(); });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+  }
 }
 boot();
