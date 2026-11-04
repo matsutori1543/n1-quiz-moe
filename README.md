@@ -54,6 +54,23 @@ Each question in `data/*.json`:
 Put image files in `img/` and list their filenames in `img/list.json`, e.g. `["a.webp", "b.jpg"]`.
 Only use images you have the right to publish — this site is public.
 
+## BGM (chill-classic.radio)
+
+Streamed from Wikimedia Commons (nothing stored in this repo). Compositions are public domain;
+the recordings are public domain or free licences that require credit, which the player shows with a link.
+
+| Piece | Performer | Licence |
+|---|---|---|
+| Chopin – Nocturne Op.9 No.2 | Martha Goldstein | CC BY-SA 2.0 |
+| Chopin – Nocturne Op.37 No.2 | Olga Gurevich (Musopen) | Public domain |
+| Chopin – Nocturne Op.48 No.2 | Luke Faulkner (Musopen) | Public domain |
+| Chopin – Nocturne Op.62 No.2 | Donald Betts (Musopen) | Public domain |
+| Chopin – Nocturne No.21 (posth.) | Diana Hughes (Musopen) | Public domain |
+| Chopin – Piano Concerto No.1, II. Romanze (string quartet) | Zuzana Šimurdová et al. (Musopen) | CC0 |
+| Liszt – Liebestraum No.3 | Martha Goldstein | CC BY-SA 2.0 |
+| Tchaikovsky – The Seasons: January, June, October | Bernd Krueger (piano-midi.de) | CC BY-SA 2.0 DE |
+| Rachmaninoff – Prelude Op.32 No.10 | La Pianista | CC BY 3.0 |
+
 ## One-time setup
 
 1. **GitHub Pages**: repo Settings → Pages → Source: *Deploy from a branch* → `main` / `(root)`.

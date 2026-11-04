@@ -1,6 +1,7 @@
 // N1 クイズ — main app (no framework, no build step).
 import * as store from './storage.js';
 import { buildSession, grade, isDue, dayStr, shuffle } from './srs.js';
+import { initRadio } from './radio.js';
 
 const TYPES = {
   yomi: { label: '漢字読み', short: '読み', prompt: '＿＿の言葉の読み方として最もよいものを選びなさい。' },
@@ -562,6 +563,7 @@ desktopMQ.addEventListener('change', () => { updateSide(); if (!pics.length) loa
 async function boot() {
   tick();
   setInterval(tick, 15000);
+  initRadio();
   screen.replaceChildren(h('p', { class: 'empty' }, 'よみこみ中…'));
   try {
     await loadData();

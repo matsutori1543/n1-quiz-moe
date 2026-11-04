@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://n1-quiz-moe.firebaseapp.com https://accounts.google.com https://apis.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com; media-src https://upload.wikimedia.org; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://n1-quiz-moe.firebaseapp.com https://accounts.google.com https://apis.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#2a74b3">
@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&display=swap&text=N1%20%E3%82%AF%E3%82%A4%E3%82%BA%21%3F%E3%81%A9%E3%81%A3%E3%81%A1%E3%81%9B%E3%81%84%E3%81%8B%E3%81%96%E3%82%93%E3%81%AD%E3%81%8C%E3%81%B0%E3%82%8C%E3%82%84%E3%81%9F%E3%81%BE%E3%81%82%25023456789%3A">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -62,6 +62,21 @@
     <p class="sfx side-sfx" aria-hidden="true">がんばれ!!</p>
   </aside>
 </div>
+
+<section class="win radio" id="radio" aria-label="BGM プレーヤー">
+  <div class="tb"><span class="tt">♪ chill-classic.radio</span><button class="tbtn" id="radio-min" aria-label="小さくする / 大きくする">–</button></div>
+  <div class="radio-body">
+    <div class="lcd" id="r-title">♪ ▶ を押すと再生</div>
+    <p class="r-credit" id="r-credit"></p>
+    <div class="r-bar"><div class="r-fill" id="r-fill"></div></div>
+    <div class="r-ctrl">
+      <button class="rbtn" id="r-prev" aria-label="前の曲">◀◀</button>
+      <button class="rbtn play" id="r-play" aria-label="再生">▶</button>
+      <button class="rbtn" id="r-next" aria-label="次の曲">▶▶</button>
+      <input type="range" id="r-vol" min="0" max="1" step="0.05" value="0.5" aria-label="音量">
+    </div>
+  </div>
+</section>
 
 <footer class="taskbar">
   <button class="start" data-go="home">スタート</button>
