@@ -22,6 +22,14 @@ const TRACKS = [
   ['0/0f', 'Claude_Debussy_-_Première_Arabesque_-_Patrizia_Prati.ogg', 'アラベスク 第1番', 'ドビュッシー', 'Patrizia Prati', 'CC BY-SA 4.0'],
   ['9/90', 'Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg', 'ジムノペディ 第1番', 'サティ', 'Musopen', PD],
   ['9/91', 'Satie_-_Gnossienne_1.ogg', 'グノシエンヌ 第1番', 'サティ', 'La Pianista', 'CC BY-SA 3.0'],
+  ['c/c8', 'Gnossienne_2_(Satie).ogg', 'グノシエンヌ 第2番', 'サティ', 'La Pianista', 'CC BY-SA 3.0'],
+  ['0/07', 'Gnossienne_5_(Satie).ogg', 'グノシエンヌ 第5番', 'サティ', 'La Pianista', 'CC BY-SA 3.0'],
+  ['2/2b', 'Gnossienne_6_(Satie).ogg', 'グノシエンヌ 第6番', 'サティ', 'La Pianista', 'CC BY-SA 3.0'],
+  ['8/89', 'Claude_Debussy_-_Deuxième_Arabesque_-_Patrizia_Prati.ogg', 'アラベスク 第2番', 'ドビュッシー', 'Patrizia Prati', 'CC BY-SA 4.0'],
+  ['f/fd', 'Fryderyk_Chopin_-_Nocturne_op._9_n.3_H-dur_-_Patrizia_Prati.ogg', 'ノクターン 第3番 Op.9-3', 'ショパン', 'Patrizia Prati', 'CC BY-SA 4.0'],
+  ['5/5c', 'Tchaikovsky_the_Seasons_March.ogg', '四季 3月「ひばりの歌」', 'チャイコフスキー', 'Bernd Krueger', 'CC BY-SA 2.0 DE'],
+  ['e/e1', 'Tchaikovsky_the_Seasons_May.ogg', '四季 5月「白夜」', 'チャイコフスキー', 'Bernd Krueger', 'CC BY-SA 2.0 DE'],
+  ['a/a4', 'Tchaikovsky_the_Seasons_December.ogg', '四季 12月「クリスマス」', 'チャイコフスキー', 'Bernd Krueger', 'CC BY-SA 2.0 DE'],
 ].map(([dir, file, title, composer, performer, licence]) => {
   const enc = encodeURIComponent(file).replace(/%2F/g, '/');
   return {
@@ -81,12 +89,17 @@ export function initRadio() {
     li.append(b);
     return li;
   }));
-  $('r-listbtn').addEventListener('click', () => {
-    const open = list.hidden;
+  const setList = (open) => {
     list.hidden = !open;
     $('r-listbtn').setAttribute('aria-expanded', String(open));
     $('r-listbtn').textContent = open ? '曲リスト ▴' : '曲リスト ▾';
-  });
+    const cur = open && list.querySelector('.cur');
+    if (cur) list.scrollTop = cur.offsetTop - list.clientHeight / 2;
+  };
+  $('r-listbtn').addEventListener('click', () => setList(list.hidden));
+  // Close the pop-up list when clicking elsewhere or pressing Esc (desktop).
+  document.addEventListener('click', (e) => { if (mq.matches && !list.hidden && !root.contains(e.target)) setList(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !list.hidden) setList(false); });
   function markCurrent() {
     [...list.children].forEach((li, i) => li.classList.toggle('cur', i === order[pos]));
   }

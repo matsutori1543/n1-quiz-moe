@@ -201,7 +201,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
 .tclock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;font-size:12px}
 
 /* ---------- BGM radio ---------- */
-.radio{margin:0 14px 4px}
+.radio{margin:0 14px 4px;position:relative;overflow:visible}
 .radio .tb{cursor:default}
 .radio-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px}
 .radio.min .radio-body{display:none}
@@ -239,6 +239,8 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
   .actions .hint{display:inline}
   .types{grid-template-columns:repeat(4,minmax(0,1fr))}
   .radio{margin:0}
+  /* desktop: the track list pops up over the stats player instead of growing the column */
+  .r-list{position:absolute;left:-4px;right:-4px;bottom:calc(100% + 6px);max-height:min(60vh,420px);z-index:6;border:4px solid var(--blue);box-shadow:var(--drop)}
 }
 @media (max-width:1099px){.actions .hint{display:none}}
 
@@ -265,3 +267,4 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
 .omi-l b{color:var(--bd)}
 .omi-n{font-size:11px;color:var(--muted)}
 .exam-line b{color:var(--red)}
+@media (min-width:1100px) and (max-height:940px){.pic{height:130px}.eq{height:80px}}

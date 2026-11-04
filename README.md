@@ -76,7 +76,10 @@ the recordings are public domain or free licences that require credit, which the
 | Debussy – La fille aux cheveux de lin | Patrizia Prati | CC BY-SA 4.0 |
 | Debussy – Arabesque No.1 | Patrizia Prati | CC BY-SA 4.0 |
 | Satie – Gymnopédie No.1 | Musopen | Public domain |
-| Satie – Gnossienne No.1 | La Pianista | CC BY-SA 3.0 |
+| Satie – Gnossiennes No.1, 2, 5, 6 | La Pianista | CC BY-SA 3.0 |
+| Debussy – Arabesque No.2 | Patrizia Prati | CC BY-SA 4.0 |
+| Chopin – Nocturne Op.9 No.3 | Patrizia Prati | CC BY-SA 4.0 |
+| Tchaikovsky – The Seasons: March, May, December | Bernd Krueger (piano-midi.de) | CC BY-SA 2.0 DE |
 
 ## One-time setup
 
