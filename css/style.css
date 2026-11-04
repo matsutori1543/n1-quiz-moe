@@ -70,6 +70,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
 
 /* ---------- screens ---------- */
 .screen{position:relative;flex:1;display:flex;flex-direction:column;gap:12px;padding:16px;overflow:hidden}
+.r-list,.passage{overscroll-behavior:contain}
 .screen>*{position:relative}
 .screen>.half{position:absolute}
 .top-sfx{position:absolute;right:14px;top:16px;font-size:32px;z-index:1}
@@ -182,9 +183,9 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
 
 .widget.min .wbody{display:none}
 .wbody{padding:10px 12px}
-.clock{display:flex;align-items:center;justify-content:center;gap:14px;background:#fff;padding:12px}
-.clock-t{font:52px/1 var(--sfx);color:var(--bd)}
-.clock-d{display:flex;flex-direction:column;font-size:13px;font-weight:700;line-height:1.4}
+.clock{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;padding:12px 10px}
+.clock-t{font:46px/1 var(--sfx);color:var(--bd);white-space:nowrap}
+.clock-d{display:flex;flex-direction:column;flex:none;font-size:13px;font-weight:700;line-height:1.4;white-space:nowrap}
 .clock-d span:last-child{color:var(--red)}
 .paper{position:relative;padding:8px 12px 10px 42px;
   background-color:var(--paper);background-image:linear-gradient(90deg,transparent 30px,var(--o) 30px,var(--o) 32px,transparent 32px),repeating-linear-gradient(transparent 0 29px,var(--pale) 29px 30px);background-position:0 6px;font-size:15px;line-height:30px;font-weight:700}
@@ -240,7 +241,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
   .types{grid-template-columns:repeat(4,minmax(0,1fr))}
   .radio{margin:0}
   /* desktop: the track list pops up over the stats player instead of growing the column */
-  .r-list{position:absolute;left:-4px;right:-4px;bottom:calc(100% + 6px);max-height:min(60vh,420px);z-index:6;border:4px solid var(--blue);box-shadow:var(--drop)}
+  .r-list{position:absolute;left:0;right:0;bottom:calc(100% + 6px);max-height:min(60vh,420px);z-index:6;border:4px solid var(--blue);box-shadow:var(--drop)}
 }
 @media (max-width:1099px){.actions .hint{display:none}}
 
@@ -268,3 +269,12 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(-
 .omi-n{font-size:11px;color:var(--muted)}
 .exam-line b{color:var(--red)}
 @media (min-width:1100px) and (max-height:940px){.pic{height:130px}.eq{height:80px}}
+
+/* desktop never scrolls as a page: each column scrolls inside itself */
+@media (min-width:1100px){
+  html,body{height:100%;overflow:hidden}
+  #desk{height:calc(100dvh - 46px);padding:20px 20px 16px;align-items:stretch}
+  .icons,.side{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;padding:2px 8px 10px 2px;margin:-2px -8px 0 -2px}
+  .main-win{min-height:0;height:100%}
+  .screen{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+}

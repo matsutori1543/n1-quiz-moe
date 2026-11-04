@@ -33,11 +33,36 @@ const TRACKS = [
 ].map(([dir, file, title, composer, performer, licence]) => {
   const enc = encodeURIComponent(file).replace(/%2F/g, '/');
   return {
-    title, composer, performer, licence,
+    title, composer, performer, licence, source: 'Wikimedia Commons',
     ogg: `${BASE}${dir}/${enc}`,
     mp3: `${BASE}transcoded/${dir}/${enc}/${enc}.mp3`,
     page: `https://commons.wikimedia.org/wiki/File:${enc}`,
   };
+});
+
+// Musopen "Complete Chopin Collection" on the Internet Archive — CC0 (public domain dedication).
+const IA = 'https://archive.org/download/musopen-chopin/';
+const IA_PAGE = 'https://archive.org/details/musopen-chopin';
+[
+  ['Nocturne Op. 15 no. 1 In F major', 'ノクターン Op.15-1'],
+  ['NocturneOp27No2', 'ノクターン Op.27-2'],
+  ['Nocturne Op. 32 no. 1 in B major', 'ノクターン Op.32-1'],
+  ['Nocturne Op. 32 no. 2 in A flat major', 'ノクターン Op.32-2'],
+  ['Nocturne Op. 55 no. 1 in F minor', 'ノクターン Op.55-1'],
+  ['Nocturne Op. 55 no. 2 in E flat major', 'ノクターン Op.55-2'],
+  ['NocturneOp.72No.1InEMinor', 'ノクターン Op.72-1'],
+  ['NocturneOp.9No.1InBFlatMinor', 'ノクターン 第1番 Op.9-1'],
+  ["Nocturne B. 49 in C sharp minor 'Lento con gran espressione' (1)", 'ノクターン 第20番（遺作）'],
+  ['Waltz Op. 69 no. 1 in A flat major', 'ワルツ Op.69-1「別れ」'],
+  ['Waltz Op. 64 no. 2 in C sharp minor', 'ワルツ Op.64-2'],
+  ['WaltzOp.34No.2InAMinor', 'ワルツ Op.34-2'],
+  ['Prelude Op. 28 no. 6', '前奏曲 Op.28-6'],
+  ['Prelude Op. 28 no. 13', '前奏曲 Op.28-13'],
+  ['Prelude Op. 28 no. 15', '前奏曲 Op.28-15「雨だれ」'],
+  ['Prelude Op. 28 no. 17', '前奏曲 Op.28-17'],
+].forEach(([file, title]) => {
+  const url = IA + encodeURIComponent(`${file}.mp3`);
+  TRACKS.push({ title, composer: 'ショパン', performer: 'Musopen', licence: 'CC0', source: 'Internet Archive', ogg: null, mp3: url, page: IA_PAGE });
 });
 
 const KEY = 'n1q-radio';
@@ -140,7 +165,7 @@ export function initRadio() {
     link.href = t.page;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.textContent = 'Wikimedia Commons';
+    link.textContent = t.source;
     credit.replaceChildren(`演奏: ${t.performer} · ${t.licence} · `, link);
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.composer, album: 'N1 クイズ BGM' });
@@ -149,8 +174,9 @@ export function initRadio() {
   }
 
   function load(autoplay) {
-    triedMp3 = !canOgg;
-    audio.src = canOgg ? track().ogg : track().mp3;
+    const useOgg = canOgg && !!track().ogg;
+    triedMp3 = !useOgg;
+    audio.src = useOgg ? track().ogg : track().mp3;
     show();
     seek.value = '0';
     $('r-cur').textContent = '0:00';
