@@ -56,6 +56,10 @@ export function buildSession(questions, progress, mode, size = 20, today = daySt
     return shuffle(questions.filter((q) => want.has(q.id)));
   }
   if (mode === 'vocab' || mode === 'grammar') pool = questions.filter((q) => q.cat === mode);
+  if (mode && mode.type) {
+    pool = questions.filter((q) => q.type === mode.type);
+    if (mode.type === 'bunshou') return passageSession(pool, progress, size, today);
+  }
 
   const due = pool
     .filter((q) => isDue(progress[q.id], today))
@@ -66,4 +70,21 @@ export function buildSession(questions, progress, mode, size = 20, today = daySt
   const rest = shuffle(pool.filter((q) => progress[q.id] && !isDue(progress[q.id], today)));
   const picked = [...due.slice(0, Math.ceil(size / 2)), ...unseen, ...due.slice(Math.ceil(size / 2)), ...rest];
   return shuffle(picked.slice(0, size));
+}
+
+/** 文章の文法: whole passages, blanks in order. Passages with due/unseen blanks come first. */
+function passageSession(pool, progress, size, today) {
+  const byPassage = new Map();
+  for (const q of pool) {
+    if (!byPassage.has(q.pid)) byPassage.set(q.pid, []);
+    byPassage.get(q.pid).push(q);
+  }
+  const score = (qs) => qs.some((q) => isDue(progress[q.id], today)) ? 0 : qs.some((q) => !progress[q.id]) ? 1 : 2;
+  const groups = shuffle([...byPassage.values()]).sort((a, b) => score(a) - score(b));
+  const out = [];
+  for (const g of groups) {
+    if (out.length >= size) break;
+    out.push(...g.sort((a, b) => a.n - b.n));
+  }
+  return out;
 }

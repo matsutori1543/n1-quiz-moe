@@ -18,6 +18,10 @@ const TRACKS = [
   ['5/54', 'Tchaikovsky_the_Seasons_June.ogg', '四季 6月「舟歌」', 'チャイコフスキー', 'Bernd Krueger', 'CC BY-SA 2.0 DE'],
   ['d/d0', 'Tchaikovsky_the_Seasons_October.ogg', '四季 10月「秋の歌」', 'チャイコフスキー', 'Bernd Krueger', 'CC BY-SA 2.0 DE'],
   ['4/4e', 'Rachmaninoff_Prelude_in_B_Minor,_Op._32,_No._10.oga', '前奏曲 ロ短調 Op.32-10', 'ラフマニノフ', 'La Pianista', 'CC BY 3.0'],
+  ['8/8d', 'Claude_Debussy_-_I_Livre_Prelude_VIII..._(...La_fille_aux_cheveux_de_lin)_-_Patrizia_Prati.ogg', '亜麻色の髪の乙女', 'ドビュッシー', 'Patrizia Prati', 'CC BY-SA 4.0'],
+  ['0/0f', 'Claude_Debussy_-_Première_Arabesque_-_Patrizia_Prati.ogg', 'アラベスク 第1番', 'ドビュッシー', 'Patrizia Prati', 'CC BY-SA 4.0'],
+  ['9/90', 'Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg', 'ジムノペディ 第1番', 'サティ', 'Musopen', PD],
+  ['9/91', 'Satie_-_Gnossienne_1.ogg', 'グノシエンヌ 第1番', 'サティ', 'La Pianista', 'CC BY-SA 3.0'],
 ].map(([dir, file, title, composer, performer, licence]) => {
   const enc = encodeURIComponent(file).replace(/%2F/g, '/');
   return {

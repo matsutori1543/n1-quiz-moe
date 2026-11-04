@@ -10,7 +10,11 @@ const TYPES = {
   youhou: { label: '用法', short: '用法', prompt: '次の言葉の使い方として最もよいものを選びなさい。' },
   bunpou: { label: '文法形式', short: '文法', prompt: '（　　）に入れるのに最もよいものを選びなさい。' },
   narabe: { label: '並べ替え', short: '並替', prompt: '★に入る最もよいものを選びなさい。' },
+  bunshou: { label: '文章の文法', short: '文章', prompt: '文章を読んで、（　）に入る最もよいものを選びなさい。' },
 };
+const FW = '０１２３４５６７８９';
+const fullNum = (n) => String(n).split('').map((d) => FW[Number(d)]).join('');
+const passages = new Map();
 const TYPE_ORDER = Object.keys(TYPES);
 const MODE_LABEL = { vocab: '語彙', grammar: '文法', mix: 'ミックス', review: 'ふくしゅう' };
 const SESSION_SIZE = 20;
@@ -64,18 +68,22 @@ function validQ(q) {
     (q.cat === 'vocab' || q.cat === 'grammar') && TYPES[q.type] &&
     typeof q.q === 'string' && Array.isArray(q.opts) && q.opts.length === 4 &&
     q.opts.every((o) => typeof o === 'string') && Number.isInteger(q.a) && q.a >= 0 && q.a < 4 &&
-    typeof q.exp === 'string';
+    typeof q.exp === 'string' &&
+    (q.type !== 'bunshou' || (passages.has(q.pid) && Number.isInteger(q.n) && q.n > 0 && q.n < 10));
 }
 
 async function loadData() {
-  const files = ['data/vocab.json', 'data/grammar.json'];
-  const lists = await Promise.all(files.map(async (f) => {
+  const files = ['data/vocab.json', 'data/grammar.json', 'data/passages.json'];
+  const [vocab, grammar, texts] = await Promise.all(files.map(async (f) => {
     const r = await fetch(f);
     if (!r.ok) throw new Error(f);
     return r.json();
   }));
+  for (const p of Array.isArray(texts) ? texts : []) {
+    if (p && typeof p.id === 'string' && typeof p.text === 'string') passages.set(p.id, p);
+  }
   const seen = new Set();
-  for (const q of lists.flat()) {
+  for (const q of [...vocab, ...grammar]) {
     if (!validQ(q) || seen.has(q.id)) continue;
     seen.add(q.id);
     questions.push(q);
@@ -139,6 +147,13 @@ function renderHome() {
       item('mix', 'ミックス', SESSION_SIZE),
       item('review', 'ふくしゅう（ミスした問題）', due, 'rev'),
     ),
+    h('h3', { class: 'sub types-h' }, 'タイプ別'),
+    h('div', { class: 'types' }, TYPE_ORDER.map((t) => {
+      const n = questions.filter((q) => q.type === t).length;
+      return h('button', { 'data-go': `type:${t}`, disabled: n === 0 },
+        h('span', null, TYPES[t].label),
+        h('small', null, `${questions.find((q) => q.type === t)?.cat === 'grammar' ? '文法' : '語彙'}・${n}問`));
+    })),
     h('div', { class: 'tiles' },
       tile(acc.vocab.pct, '%', '語彙'),
       tile(acc.grammar.pct, '%', '文法'),
@@ -166,7 +181,7 @@ function start(mode) {
     return;
   }
   session = {
-    label: typeof mode === 'string' ? MODE_LABEL[mode] : 'ミスだけ',
+    label: typeof mode === 'string' ? MODE_LABEL[mode] : mode.type ? TYPES[mode.type].label : 'ミスだけ',
     items: qs.map((q) => ({ q, order: shuffle([0, 1, 2, 3]), first: true, res: null })),
     i: 0, ok: 0, ng: 0, missed: [],
   };
@@ -191,8 +206,10 @@ function renderQuestion() {
     h('p', { class: 'sfx top-sfx pop', 'aria-hidden': 'true' }, 'どっち!?'),
     segs(),
     h('p', { class: 'meta' }, `${s.label} ${s.i + 1} / ${s.items.length}　○${s.ok} ×${s.ng}${it.first ? '' : '　（もう一回）'}`),
-    h('p', { class: 'prompt' }, t.prompt),
-    q.type === 'youhou' ? h('p', { class: 'word' }, q.q) : h('p', { class: 'sent' }, rich(q.q)),
+    h('p', { class: 'prompt' }, q.type === 'bunshou' ? t.prompt.replace('（　）', `（${fullNum(q.n)}）`) : t.prompt),
+    q.type === 'youhou' ? h('p', { class: 'word' }, q.q)
+      : q.type === 'bunshou' ? passageBox(q)
+      : h('p', { class: 'sent' }, rich(q.q)),
     h('div', { class: 'opts' + (long ? ' long' : '') },
       it.order.map((oi, k) => h('button', { class: 'opt', onclick: () => answer(k) },
         h('span', { class: 'num' }, String(k + 1)), h('span', null, q.opts[oi])))),
@@ -202,6 +219,24 @@ function renderQuestion() {
       h('button', { class: 'btn', onclick: finish }, 'やめる')),
   );
   updateSide();
+}
+
+/** Passage with numbered blanks; the current one is highlighted. */
+function passageBox(q) {
+  const p = passages.get(q.pid);
+  const box = h('div', { class: 'passage', tabindex: '0', 'aria-label': p.title },
+    h('h4', null, p.title),
+    p.text.split('\n').map((para) => h('p', null, para.split(/(（[０-９]+）)/).filter(Boolean).map((part) => {
+      const m = part.match(/^（([０-９]+)）$/);
+      if (!m) return part;
+      const num = [...m[1]].map((c) => FW.indexOf(c)).join('');
+      return h('span', { class: 'pblank' + (Number(num) === q.n ? ' cur' : '') }, part);
+    }))));
+  requestAnimationFrame(() => {
+    const cur = box.querySelector('.cur');
+    if (cur) box.scrollTop = Math.max(0, cur.offsetTop - box.offsetTop - box.clientHeight / 2);
+  });
+  return box;
 }
 
 function answer(k) {
@@ -314,7 +349,8 @@ function finish() {
     lastMissed.length ? h('h3', { class: 'sub' }, 'ミスした問題') : h('p', { class: 'sub' }, 'ノーミス！ すごい！'),
     h('ul', { class: 'misslist' }, lastMissed.map((id) => {
       const q = byId.get(id);
-      return h('li', null, plain(q.q), h('br'), h('span', { class: 'a' }, '○ ' + q.opts[q.a]));
+      const label = q.type === 'bunshou' ? `「${passages.get(q.pid).title}」${q.q}` : plain(q.q);
+      return h('li', null, label, h('br'), h('span', { class: 'a' }, '○ ' + q.opts[q.a]));
     })),
     h('div', { class: 'actions' },
       lastMissed.length ? h('button', { class: 'btn alt', 'data-go': 'retry' }, 'ミスだけもういちど') : null,
@@ -528,6 +564,7 @@ function go(target) {
   else if (target === 'stats') renderStats();
   else if (target === 'settings') renderSettings();
   else if (target === 'retry') start({ ids: lastMissed });
+  else if (target.startsWith('type:') && TYPES[target.slice(5)]) start({ type: target.slice(5) });
   else if (MODE_LABEL[target]) start(target);
 }
 

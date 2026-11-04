@@ -39,7 +39,7 @@ Each question in `data/*.json`:
 {
   "id": "v-bun-016",            // unique
   "cat": "vocab",               // vocab | grammar
-  "type": "bunmyaku",           // yomi | bunmyaku | iikae | youhou | bunpou | narabe
+  "type": "bunmyaku",           // yomi | bunmyaku | iikae | youhou | bunpou | narabe | bunshou
   "q": "文（　　）文",            // {word} = underlined, （　　） = blank, ★ = star slot
   "opts": ["正解", "b", "c", "d"],
   "a": 0,                       // index of the correct option (options are shuffled on screen)
@@ -48,6 +48,9 @@ Each question in `data/*.json`:
   "full": "並べ替えの正しい文（narabe のみ）"
 }
 ```
+
+For 文章の文法 (`bunshou`), add the passage to `data/passages.json` with blanks written as
+（１）（２）… and give each question `"pid"` (passage id) and `"n"` (blank number).
 
 ## Adding pictures
 
@@ -70,6 +73,10 @@ the recordings are public domain or free licences that require credit, which the
 | Liszt – Liebestraum No.3 | Martha Goldstein | CC BY-SA 2.0 |
 | Tchaikovsky – The Seasons: January, June, October | Bernd Krueger (piano-midi.de) | CC BY-SA 2.0 DE |
 | Rachmaninoff – Prelude Op.32 No.10 | La Pianista | CC BY 3.0 |
+| Debussy – La fille aux cheveux de lin | Patrizia Prati | CC BY-SA 4.0 |
+| Debussy – Arabesque No.1 | Patrizia Prati | CC BY-SA 4.0 |
+| Satie – Gymnopédie No.1 | Musopen | Public domain |
+| Satie – Gnossienne No.1 | La Pianista | CC BY-SA 3.0 |
 
 ## One-time setup
 
