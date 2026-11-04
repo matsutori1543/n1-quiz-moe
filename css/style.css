@@ -4,7 +4,7 @@
   --blue:#59a6dc; --bd:#2a74b3; --bdd:#1d5687; --pale:#d9ecf8; --shadowblue:#bcdcf2;
   --red:#c84a0c; --orange-text:#b35200; --ink:#2b1a08; --muted:#5b4a30;
   --ok-bg:#d8f0e2; --ok:#1f7a4d; --ok-ink:#0f4a2c; --ng-bg:#fde3d6; --ng-ink:#7a2a05;
-  --font:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  --font:"Hiragino Sans","Hiragino Kaku Gothic ProN","Meiryo","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;
   --sfx:"Dela Gothic One",var(--font);
   --drop:0 0 0 2px #fff,5px 6px 0 2px rgba(120,70,0,.18);
 }
