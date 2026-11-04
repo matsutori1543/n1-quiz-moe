@@ -50,7 +50,61 @@ export function initRadio() {
   let errors = 0;
   audio.volume = typeof saved.vol === 'number' ? Math.min(1, Math.max(0, saved.vol)) : 0.5;
   $('r-vol').value = String(audio.volume);
-  root.classList.toggle('min', !!saved.min);
+  setMin(!!saved.min);
+  let seeking = false;
+
+  // Desktop: live in the left column under the stats player. Phone: under the quiz.
+  const mq = window.matchMedia('(min-width:1100px)');
+  const place = () => {
+    const side = document.querySelector('.side-l');
+    if (mq.matches && side) side.append(root);
+    else document.getElementById('desk').after(root);
+  };
+  place();
+  mq.addEventListener('change', place);
+
+  function setMin(on) {
+    root.classList.toggle('min', on);
+    const b = $('radio-min');
+    b.textContent = on ? '+' : '–';
+    b.setAttribute('aria-label', on ? '元に戻す' : '最小化');
+  }
+  const fmt = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '0:00');
+
+  // Track list
+  const list = $('r-list');
+  list.replaceChildren(...TRACKS.map((t, i) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.textContent = `${t.composer}「${t.title}」`;
+    b.addEventListener('click', () => playIndex(i));
+    li.append(b);
+    return li;
+  }));
+  $('r-listbtn').addEventListener('click', () => {
+    const open = list.hidden;
+    list.hidden = !open;
+    $('r-listbtn').setAttribute('aria-expanded', String(open));
+    $('r-listbtn').textContent = open ? '曲リスト ▴' : '曲リスト ▾';
+  });
+  function markCurrent() {
+    [...list.children].forEach((li, i) => li.classList.toggle('cur', i === order[pos]));
+  }
+  function playIndex(i) {
+    pos = order.indexOf(i);
+    load(true);
+  }
+
+  // Seek bar
+  const seek = $('r-seek');
+  seek.addEventListener('input', () => {
+    seeking = true;
+    if (audio.duration) $('r-cur').textContent = fmt((seek.value / 1000) * audio.duration);
+  });
+  seek.addEventListener('change', () => {
+    if (audio.duration) audio.currentTime = (seek.value / 1000) * audio.duration;
+    seeking = false;
+  });
 
   function shuffledOrder() {
     const a = TRACKS.map((_, i) => i);
@@ -78,13 +132,16 @@ export function initRadio() {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.composer, album: 'N1 クイズ BGM' });
     }
+    markCurrent();
   }
 
   function load(autoplay) {
     triedMp3 = !canOgg;
     audio.src = canOgg ? track().ogg : track().mp3;
     show();
-    $('r-fill').style.width = '0%';
+    seek.value = '0';
+    $('r-cur').textContent = '0:00';
+    $('r-dur').textContent = '0:00';
     if (autoplay) audio.play().catch(() => setPlaying(false));
   }
 
@@ -109,13 +166,16 @@ export function initRadio() {
   $('r-next').addEventListener('click', () => step(1));
   $('r-prev').addEventListener('click', () => step(-1));
   $('r-vol').addEventListener('input', (e) => { audio.volume = Number(e.target.value); save(); });
-  $('radio-min').addEventListener('click', () => { root.classList.toggle('min'); save(); });
+  $('radio-min').addEventListener('click', () => { setMin(!root.classList.contains('min')); save(); });
 
   audio.addEventListener('play', () => { setPlaying(true); errors = 0; });
   audio.addEventListener('pause', () => setPlaying(false));
   audio.addEventListener('ended', () => step(1));
+  audio.addEventListener('loadedmetadata', () => { $('r-dur').textContent = fmt(audio.duration); });
   audio.addEventListener('timeupdate', () => {
-    if (audio.duration) $('r-fill').style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+    if (!audio.duration || seeking) return;
+    seek.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
+    $('r-cur').textContent = fmt(audio.currentTime);
   });
   audio.addEventListener('error', () => {
     if (!triedMp3) {

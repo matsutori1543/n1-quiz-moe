@@ -2,6 +2,7 @@
 import * as store from './storage.js';
 import { buildSession, grade, isDue, dayStr, shuffle } from './srs.js';
 import { initRadio } from './radio.js';
+import { initWidgets, tickWidgets, examInfo } from './widgets.js';
 
 const TYPES = {
   yomi: { label: '漢字読み', short: '読み', prompt: '＿＿の言葉の読み方として最もよいものを選びなさい。' },
@@ -141,6 +142,10 @@ function renderHome() {
     h('div', { class: 'half tl' }),
     h('h2', { class: 'sfx title-sfx' }, 'N1 クイズ!!'),
     h('p', { class: 'sub' }, `れんぞく ${store.streak()}日目　きょう ${tc.vocab + tc.grammar}問`),
+    (() => {
+      const ex = examInfo();
+      return ex.days >= 0 ? h('p', { class: 'sub exam-line' }, `JLPT（${ex.place}）まで `, h('b', null, `あと${ex.days}日`)) : null;
+    })(),
     h('div', { class: 'menu' },
       item('vocab', '語彙', SESSION_SIZE),
       item('grammar', '文法', SESSION_SIZE),
@@ -504,7 +509,9 @@ function tick() {
   $('#date').replaceChildren(
     h('span', null, `${d.getMonth() + 1}月${d.getDate()}日`),
     h('span', null, '日月火水木金土'[d.getDay()] + '曜日'));
+  tickWidgets(d);
 }
+window.addEventListener('n1q-exam', () => { if (current === 'home') renderHome(); });
 
 function updateSide() {
   const due = dueCount();
@@ -598,6 +605,7 @@ desktopMQ.addEventListener('change', () => { updateSide(); if (!pics.length) loa
 
 /* ---------- boot ---------- */
 async function boot() {
+  initWidgets();
   tick();
   setInterval(tick, 15000);
   initRadio();

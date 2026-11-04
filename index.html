@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&display=swap&text=N1%20%E3%82%AF%E3%82%A4%E3%82%BA%21%3F%E3%81%A9%E3%81%A3%E3%81%A1%E3%81%9B%E3%81%84%E3%81%8B%E3%81%96%E3%82%93%E3%81%AD%E3%81%8C%E3%81%B0%E3%82%8C%E3%82%84%E3%81%9F%E3%81%BE%E3%81%82%25023456789%3A">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&display=swap&text=N1%20%E3%82%AF%E3%82%A4%E3%82%BA%21%3F%E3%81%A9%E3%81%A3%E3%81%A1%E3%81%9B%E3%81%84%E3%81%8B%E3%81%96%E3%82%93%E3%81%AD%E3%81%8C%E3%81%B0%E3%82%8C%E3%82%84%E3%81%9F%E3%81%BE%E3%81%82%25023456789%3A%E5%A4%A7%E4%B8%AD%E5%B0%8F%E6%9C%AB%E5%90%89%E5%87%B6%E3%81%8D%E3%82%87%E3%81%86">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -57,24 +57,39 @@
   </main>
 
   <aside class="side side-r">
-    <section class="clock"><span class="clock-t" id="clock">--:--</span><span class="clock-d" id="date"></span></section>
-    <section class="paper" id="memo"><div class="tape"></div><h2>きょうの todo</h2><ul id="todo"></ul></section>
-    <p class="sfx side-sfx" aria-hidden="true">がんばれ!!</p>
+    <section class="win widget" data-w="clock">
+      <div class="tb"><span class="tt">とけい.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
+      <div class="wbody clock"><span class="clock-t" id="clock">--:--</span><span class="clock-d" id="date"></span></div>
+    </section>
+    <section class="win widget" data-w="exam">
+      <div class="tb"><span class="tt">試験まで.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
+      <div class="wbody exam" id="exam"></div>
+    </section>
+    <section class="win widget" data-w="todo">
+      <div class="tb"><span class="tt">todo.txt</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
+      <div class="wbody paper"><ul id="todo"></ul></div>
+    </section>
+    <section class="win widget" data-w="omikuji">
+      <div class="tb"><span class="tt">おみくじ.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
+      <div class="wbody omikuji" id="omikuji"></div>
+    </section>
   </aside>
 </div>
 
 <section class="win radio" id="radio" aria-label="BGM プレーヤー">
-  <div class="tb"><span class="tt">♪ chill-classic.radio</span><button class="tbtn" id="radio-min" aria-label="小さくする / 大きくする">–</button></div>
+  <div class="tb"><span class="tt">♪ chill-classic.radio</span><button class="tbtn" id="radio-min" aria-label="最小化">–</button></div>
   <div class="radio-body">
     <div class="lcd" id="r-title">♪ ▶ を押すと再生</div>
     <p class="r-credit" id="r-credit"></p>
-    <div class="r-bar"><div class="r-fill" id="r-fill"></div></div>
+    <div class="r-seek"><span id="r-cur">0:00</span><input type="range" id="r-seek" min="0" max="1000" value="0" step="1" aria-label="再生位置"><span id="r-dur">0:00</span></div>
     <div class="r-ctrl">
       <button class="rbtn" id="r-prev" aria-label="前の曲">◀◀</button>
       <button class="rbtn play" id="r-play" aria-label="再生">▶</button>
       <button class="rbtn" id="r-next" aria-label="次の曲">▶▶</button>
       <input type="range" id="r-vol" min="0" max="1" step="0.05" value="0.5" aria-label="音量">
     </div>
+    <button class="r-listbtn" id="r-listbtn" aria-expanded="false">曲リスト ▾</button>
+    <ol class="r-list" id="r-list" hidden></ol>
   </div>
 </section>
 
@@ -82,7 +97,11 @@
   <button class="start" data-go="home">スタート</button>
   <button class="task" data-go="stats">♪ せいせき</button>
   <button class="task" data-go="settings">⚙ せってい</button>
-  <span class="tray"><span id="sync-state">未ログイン</span><span id="tclock">--:--</span></span>
+  <span class="tray">
+    <span id="sync-state">未ログイン</span>
+    <span class="kbd" id="kbd" title="キーボード（ブラウザから推定）">ENG</span>
+    <span class="tclock"><span id="tclock">--:--</span><span id="tdate">----/--/--</span></span>
+  </span>
 </footer>
 
 <nav class="pnav" aria-label="メニュー">
