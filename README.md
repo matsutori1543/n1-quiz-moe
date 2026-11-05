@@ -57,6 +57,13 @@ For 文章の文法 (`bunshou`), add the passage to `data/passages.json` with bl
 Put image files in `img/` and list their filenames in `img/list.json`, e.g. `["a.webp", "b.jpg"]`.
 Only use images you have the right to publish — this site is public.
 
+## 読書.exe (reader)
+
+Opens Aozora Bunko books (zip with ruby text, .txt, or .html) from the user's device, parses ruby and headings,
+paginates, and stores the book in IndexedDB on that device only — no book text is stored in this repo.
+English: the browser's on-device Translator API when available (newer Chrome/Edge), otherwise per-page
+Google Translate / DeepL links. Furigana toggle, vertical text (縦書き), font size, bookmarks per book.
+
 ## BGM (chill-classic.radio)
 
 Streamed from Wikimedia Commons (nothing stored in this repo). Compositions are public domain;

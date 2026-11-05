@@ -574,6 +574,7 @@ function go(target) {
   if (target === 'home') renderHome();
   else if (target === 'stats') renderStats();
   else if (target === 'settings') renderSettings();
+  else if (target === 'reader') { import('./reader.js').then((m) => m.openReader()); return; }
   else if (target === 'retry') start({ ids: lastMissed });
   else if (target.startsWith('type:') && TYPES[target.slice(5)]) start({ type: target.slice(5) });
   else if (MODE_LABEL[target]) start(target);

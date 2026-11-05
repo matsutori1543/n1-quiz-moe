@@ -5,7 +5,7 @@ const EXT_CACHE = 'n1q-ext-v1';
 
 const SHELL = [
   './', 'index.html', 'css/style.css',
-  'js/app.js', 'js/srs.js', 'js/storage.js', 'js/sync.js', 'js/radio.js', 'js/widgets.js', 'js/theme.js',
+  'js/app.js', 'js/srs.js', 'js/storage.js', 'js/sync.js', 'js/radio.js', 'js/widgets.js', 'js/theme.js', 'js/reader.js',
   'data/vocab.json', 'data/grammar.json', 'data/passages.json',
   'manifest.json', 'icons/icon.svg', 'icons/icon-192.png',
 ];
