@@ -441,6 +441,7 @@ function renderPage() {
   ja.scrollTop = 0;
   if (s.tate) ja.scrollLeft = ja.scrollWidth;
   bindSwipe(ja);
+  bindWheel(ja, s.tate);
   if (s.en) fillEnglish(en, pg);
 }
 
@@ -485,6 +486,32 @@ async function fillEnglish(box, pg) {
   } catch {
     if (still()) status.textContent = '翻訳に失敗しました。下のボタンで翻訳できます。';
   }
+}
+
+// Mouse wheel: scroll inside a long page first; at the edge, the wheel turns the page.
+// One page per wheel gesture (short cooldown + small threshold so trackpads don't skip pages).
+let wheelLock = 0;
+let wheelAcc = 0;
+function bindWheel(node, tate) {
+  node.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) return; // pinch-zoom
+    const dy = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    if (!dy) return;
+    const dir = dy > 0 ? 1 : -1;
+    if (!tate) {
+      const atEnd = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+      const atStart = node.scrollTop <= 1;
+      if ((dir > 0 && !atEnd) || (dir < 0 && !atStart)) { wheelAcc = 0; return; } // let it scroll
+    }
+    e.preventDefault();
+    const now = Date.now();
+    if (now < wheelLock) return;
+    wheelAcc += Math.abs(dy) * (e.deltaMode === 1 ? 30 : 1);
+    if (wheelAcc < 40) return;
+    wheelAcc = 0;
+    wheelLock = now + 450;
+    turn(dir);
+  }, { passive: false });
 }
 
 function bindSwipe(node) {
