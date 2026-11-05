@@ -2,7 +2,7 @@
 import * as store from './storage.js';
 import { buildSession, grade, isDue, dayStr, shuffle } from './srs.js';
 import { initRadio } from './radio.js';
-import { initWidgets, tickWidgets, examInfo } from './widgets.js';
+import { initWidgets, tickWidgets, examInfo, themePicker } from './widgets.js';
 
 const TYPES = {
   yomi: { label: '漢字読み', short: '読み', prompt: '＿＿の言葉の読み方として最もよいものを選びなさい。' },
@@ -424,6 +424,9 @@ function renderSettings() {
   } }, 'きろくを全部消す');
 
   screen.replaceChildren(
+    h('div', { class: 'card' },
+      h('h3', null, 'テーマ'),
+      themePicker()),
     h('div', { class: 'card' },
       h('h3', null, '同期（パソコン ⇄ スマホ）'),
       h('p', null, `状態：${SYNC_TEXT[syncStatus] || syncStatus}`),

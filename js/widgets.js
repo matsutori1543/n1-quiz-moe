@@ -158,7 +158,24 @@ function initKeyboard() {
   }, true);
 }
 
+/* ---------- theme picker (PC widget + せってい) ---------- */
+export function themePicker() {
+  const T = window.N1Theme;
+  const box = el('div', { class: 'themes', role: 'group', 'aria-label': 'テーマ' });
+  const draw = () => {
+    if (!T) return;
+    box.replaceChildren(...T.list().map((t) => el('button', {
+      class: 'theme-btn', 'aria-pressed': String(T.get() === t.id), onclick: () => T.set(t.id),
+    }, el('span', { class: `theme-sw ${t.id}`, 'aria-hidden': 'true' }), t.name)));
+  };
+  draw();
+  const onTheme = () => (box.isConnected ? draw() : window.removeEventListener('n1q-theme', onTheme));
+  window.addEventListener('n1q-theme', onTheme);
+  return box;
+}
+
 export function initWidgets() {
+  $('theme-widget')?.replaceChildren(themePicker());
   initMinimise();
   renderExam();
   renderOmikuji();
