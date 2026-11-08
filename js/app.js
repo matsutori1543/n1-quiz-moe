@@ -591,26 +591,58 @@ document.addEventListener('click', (e) => {
   if (el) go(el.getAttribute('data-go'));
 });
 
-// Phone: swipe left to go to the next question (only after answering).
+// Phone: drag the question sideways; let go past the threshold (or flick) to go to the next one.
 (() => {
   let x0 = null;
   let y0 = null;
   let t0 = 0;
+  let axis = null;
+  let dx = 0;
+  const canGo = () => (session && session.items[session.i]?.res) || current === 'result';
+  const reset = (animate) => {
+    screen.style.transition = animate ? 'transform .22s ease-out, opacity .22s ease-out' : '';
+    screen.style.transform = '';
+    screen.style.opacity = '';
+  };
   screen.addEventListener('touchstart', (e) => {
     if (desktopMQ.matches || e.touches.length !== 1 || e.target.closest('input,textarea,.passage')) { x0 = null; return; }
     x0 = e.touches[0].clientX;
     y0 = e.touches[0].clientY;
     t0 = Date.now();
+    axis = null;
+    dx = 0;
+    screen.style.transition = '';
   }, { passive: true });
-  screen.addEventListener('touchend', (e) => {
+  screen.addEventListener('touchmove', (e) => {
     if (x0 == null) return;
-    const dx = e.changedTouches[0].clientX - x0;
-    const dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Date.now() - t0 > 800 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0 && session && session.items[session.i]?.res) next(true);
-    else if (dx < 0 && current === 'result') renderHome();
+    const mx = e.touches[0].clientX - x0;
+    const my = e.touches[0].clientY - y0;
+    if (!axis && (Math.abs(mx) > 8 || Math.abs(my) > 8)) axis = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+    if (axis !== 'x') return;
+    dx = mx;
+    const free = dx < 0 && canGo();
+    const shown = free ? dx : dx * 0.2; // locked or wrong direction: just a little rubber-band
+    screen.style.transform = `translateX(${shown}px)`;
+    screen.style.opacity = free ? String(Math.max(0.35, 1 + dx / (screen.offsetWidth * 1.2))) : '';
   }, { passive: true });
+  const end = () => {
+    if (x0 == null) return;
+    x0 = null;
+    if (axis !== 'x') return reset(false);
+    const speed = Math.abs(dx) / Math.max(1, Date.now() - t0);
+    const go = dx < 0 && canGo() && (dx < -screen.offsetWidth * 0.22 || (speed > 0.4 && dx < -30));
+    if (!go) return reset(true);
+    screen.style.transition = 'transform .16s ease-in, opacity .16s ease-in';
+    screen.style.transform = 'translateX(-105%)';
+    screen.style.opacity = '0';
+    setTimeout(() => {
+      reset(false);
+      if (current === 'result') renderHome();
+      else next(true);
+    }, 160);
+  };
+  screen.addEventListener('touchend', end, { passive: true });
+  screen.addEventListener('touchcancel', () => { x0 = null; reset(true); }, { passive: true });
 })();
 
 document.addEventListener('keydown', (e) => {

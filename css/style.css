@@ -394,8 +394,12 @@ body.reading{overflow:hidden}
 /* phone swipe navigation */
 .swipe-hint{margin:0;text-align:center;font-size:12px;font-weight:700;color:var(--muted);animation:nudge 1.6s ease-in-out infinite}
 @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-6px)}}
-.screen.slide-in{animation:slidein .28s ease-out}
-@keyframes slidein{from{transform:translateX(40px);opacity:.2}to{transform:none;opacity:1}}
+.screen.slide-in{animation:slidein .24s ease-out}
+@keyframes slidein{from{transform:translateX(70%);opacity:0}to{transform:none;opacity:1}}
 .screen{touch-action:pan-y}
 @media (min-width:1100px){.swipe-hint{display:none}}
 @media (prefers-reduced-motion:reduce){.swipe-hint,.screen.slide-in{animation:none}}
+
+/* phone nav: four buttons on one line */
+.pnav{gap:6px;padding-left:10px;padding-right:10px}
+.pnav .btn{padding:0 4px;font-size:13px;white-space:nowrap;min-width:0;letter-spacing:-.02em}
