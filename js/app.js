@@ -314,10 +314,11 @@ function renderFeedback(it, k, ok, nextDue) {
     q.full ? h('p', { class: 'full' }, '正しい順番：' + q.full) : null,
     q.ex ? h('p', { class: 'ex' }, '例）' + q.ex) : null);
   const last = s.i >= s.items.length - 1;
-  const nextBtn = h('button', { class: 'btn', onclick: next }, last ? 'けっか →' : 'つぎ →');
+  const nextBtn = h('button', { class: 'btn', onclick: () => next() }, last ? 'けっか →' : 'つぎ →');
   screen.querySelector('.actions').replaceWith(
     board,
     h('p', { class: 'note' }, note),
+    h('p', { class: 'swipe-hint', 'aria-hidden': 'true' }, '← スワイプでつぎへ'),
     h('div', { class: 'actions' }, h('span', { class: 'hint' }, 'Enter でつぎへ'), nextBtn),
   );
   nextBtn.focus({ preventScroll: true });
@@ -325,13 +326,18 @@ function renderFeedback(it, k, ok, nextDue) {
   updateSide();
 }
 
-function next() {
+function next(fromSwipe = false) {
   if (!session) return;
   session.i += 1;
   if (session.i >= session.items.length) finish();
   else {
     renderQuestion();
     window.scrollTo({ top: 0 });
+  }
+  if (fromSwipe) {
+    screen.classList.remove('slide-in');
+    void screen.offsetWidth; // restart the animation
+    screen.classList.add('slide-in');
   }
 }
 
@@ -584,6 +590,28 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-go]');
   if (el) go(el.getAttribute('data-go'));
 });
+
+// Phone: swipe left to go to the next question (only after answering).
+(() => {
+  let x0 = null;
+  let y0 = null;
+  let t0 = 0;
+  screen.addEventListener('touchstart', (e) => {
+    if (desktopMQ.matches || e.touches.length !== 1 || e.target.closest('input,textarea,.passage')) { x0 = null; return; }
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+    t0 = Date.now();
+  }, { passive: true });
+  screen.addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Date.now() - t0 > 800 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0 && session && session.items[session.i]?.res) next(true);
+    else if (dx < 0 && current === 'result') renderHome();
+  }, { passive: true });
+})();
 
 document.addEventListener('keydown', (e) => {
   if (!session || e.target.closest('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
