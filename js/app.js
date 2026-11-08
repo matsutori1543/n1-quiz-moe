@@ -605,7 +605,7 @@ document.addEventListener('click', (e) => {
     screen.style.opacity = '';
   };
   screen.addEventListener('touchstart', (e) => {
-    if (desktopMQ.matches || e.touches.length !== 1 || e.target.closest('input,textarea,.passage')) { x0 = null; return; }
+    if (desktopMQ.matches || e.touches.length !== 1 || e.target.closest('input,textarea')) { x0 = null; return; }
     x0 = e.touches[0].clientX;
     y0 = e.touches[0].clientY;
     t0 = Date.now();
