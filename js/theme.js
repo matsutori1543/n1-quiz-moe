@@ -1,30 +1,31 @@
-// Loaded in <head> before the page draws, so the saved theme applies without a flash.
+// Applies the saved theme before the page paints (plain script, loaded in <head>).
 (function () {
   var KEY = 'n1q-theme';
-  var THEMES = {
-    sunflower: { name: 'ひまわり', color: '#2a74b3' },
-    pink: { name: 'さくら', color: '#c93a76' },
-    red: { name: '怪盗', color: '#111111' },
-  };
-  function apply(id) {
-    if (!THEMES[id]) id = 'sunflower';
-    if (id === 'sunflower') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', id);
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', THEMES[id].color);
-    return id;
+  var LIST = [['mochi', 'もち'], ['ramune', 'ラムネ'], ['sakura', 'さくら'], ['yofukashi', 'よふかし'], ['kaitou', '怪盗']];
+  var OLD = { sunflower: 'mochi', pink: 'sakura', red: 'kaitou' };
+  var BAR = { mochi: '#fff3dc', ramune: '#dcf3fb', sakura: '#ffe9f0', yofukashi: '#191b33', kaitou: '#d5101e' };
+  function valid(t) { return LIST.some(function (x) { return x[0] === t; }); }
+  var current = 'mochi';
+  try {
+    var saved = localStorage.getItem(KEY);
+    saved = OLD[saved] || saved;
+    if (valid(saved)) current = saved;
+  } catch (e) { /* ignore */ }
+  function apply() {
+    document.documentElement.dataset.theme = current;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = BAR[current];
   }
-  var current = 'sunflower';
-  try { current = localStorage.getItem(KEY) || 'sunflower'; } catch (e) { /* ignore */ }
-  current = apply(current);
-
+  apply();
   window.N1Theme = {
-    list: function () { return Object.keys(THEMES).map(function (id) { return { id: id, name: THEMES[id].name }; }); },
+    list: LIST,
     get: function () { return current; },
-    set: function (id) {
-      current = apply(id);
-      try { localStorage.setItem(KEY, current); } catch (e) { /* ignore */ }
-      window.dispatchEvent(new CustomEvent('n1q-theme', { detail: current }));
+    set: function (t) {
+      if (!valid(t)) return;
+      current = t;
+      try { localStorage.setItem(KEY, t); } catch (e) { /* ignore */ }
+      apply();
+      window.dispatchEvent(new Event('n1q-theme'));
     },
   };
 })();

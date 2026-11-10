@@ -1,192 +1,226 @@
-// Desktop widgets: minimise/restore, exam countdown, おみくじ, keyboard indicator, taskbar date.
+// Side widgets. Each one is a small card that can be minimised or switched off in settings.
+import { h, clear, mount, icon, loadJSON, saveJSON, dayIndex } from './ui.js';
+import { daruma, chick } from './mascot.js';
+import { KOTOWAZA, OMIKUJI } from './words.js';
+import { dayStr, addDays } from './srs.js';
+import * as store from './storage.js';
+import { ambience } from './player.js';
 
-const $ = (id) => document.getElementById(id);
-const KEY = 'n1q-widgets';
+const KEY = 'n1q-widgets-v2';
 const EXAM_KEY = 'n1q-exam';
-const OMIKUJI_KEY = 'n1q-omikuji';
-const DEFAULT_EXAM = { date: '2026-12-06', place: 'ウィーン' };
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+let state = loadJSON(KEY, {});
+if (!state || typeof state !== 'object') state = {};
+const ticks = [];
+const refreshers = [];
+let ctx = { questions: [], prefs: () => ({ goal: 20 }) };
 
-const load = (k, fallback) => {
-  try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; }
-};
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-function el(tag, props, ...kids) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') e.className = v;
-    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else e.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : String(c));
-  return e;
+export function todayCount() {
+  const d = store.get().days[dayStr()];
+  return d ? d.vocab + d.grammar : 0;
 }
 
-/* ---------- minimise / restore ---------- */
-function initMinimise() {
-  const state = load(KEY, {});
-  document.querySelectorAll('.widget').forEach((w) => {
-    const id = w.dataset.w;
-    const btn = w.querySelector('.wmin');
-    const set = (min) => {
-      w.classList.toggle('min', min);
-      btn.textContent = min ? '+' : '–';
-      btn.setAttribute('aria-label', min ? '元に戻す' : '最小化');
-    };
-    set(!!state[id]);
-    btn.addEventListener('click', () => {
-      const min = !w.classList.contains('min');
-      set(min);
-      state[id] = min;
-      save(KEY, state);
-    });
-  });
-}
-
-/* ---------- exam countdown ---------- */
+/* ---------- exam date ---------- */
 export function examInfo() {
-  const e = load(EXAM_KEY, DEFAULT_EXAM);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(e.date) ? e.date : DEFAULT_EXAM.date;
+  const raw = loadJSON(EXAM_KEY, null) || {};
+  const date = DAY_RE.test(raw.date) ? raw.date : '2026-12-06';
+  const place = typeof raw.place === 'string' && raw.place.trim() ? raw.place.trim().slice(0, 20) : 'ウィーン';
   const [y, m, d] = date.split('-').map(Number);
   const now = new Date();
-  const days = Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
-  return { date, place: typeof e.place === 'string' ? e.place.slice(0, 20) : DEFAULT_EXAM.place, days, y, m, d };
+  const days = Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+  return { date, place, days, label: `${y}年${m}月${d}日` };
+}
+export function setExam(date, place) {
+  const cur = examInfo();
+  saveJSON(EXAM_KEY, { date: DAY_RE.test(date) ? date : cur.date, place: (place ?? cur.place).slice(0, 20) });
+  refreshWidgets();
 }
 
-function renderExam(editing = false) {
-  const box = $('exam');
-  const info = examInfo();
-  if (editing) {
-    const date = el('input', { type: 'date', value: info.date, 'aria-label': '試験日' });
-    const place = el('input', { type: 'text', value: info.place, maxlength: '20', 'aria-label': '会場' });
-    box.replaceChildren(
-      el('label', null, '試験日 ', date),
-      el('label', null, '会場 ', place),
-      el('div', { class: 'wrow' },
-        el('button', { class: 'wbtn', onclick: () => renderExam(false) }, 'やめる'),
-        el('button', { class: 'wbtn main', onclick: () => {
-          if (/^\d{4}-\d{2}-\d{2}$/.test(date.value)) save(EXAM_KEY, { date: date.value, place: place.value.trim() || '—' });
-          renderExam(false);
-          window.dispatchEvent(new Event('n1q-exam'));
-        } }, 'ほぞん')));
-    return;
-  }
-  const wd = '日月火水木金土'[new Date(info.y, info.m - 1, info.d).getDay()];
-  let big;
-  if (info.days > 0) big = el('p', { class: 'exam-days' }, 'あと', el('b', null, String(info.days)), '日');
-  else if (info.days === 0) big = el('p', { class: 'exam-days' }, el('b', null, 'きょう!!'));
-  else big = el('p', { class: 'exam-days small' }, 'おつかれさま！');
-  box.replaceChildren(
-    el('p', { class: 'exam-t' }, `JLPT N1 ・ ${info.place}`),
-    big,
-    el('p', { class: 'exam-d' }, `${info.y}年${info.m}月${info.d}日（${wd}）`),
-    info.days > 7 ? el('p', { class: 'exam-s' }, `のこり約${Math.ceil(info.days / 7)}週間`) : null,
-    el('button', { class: 'wbtn', onclick: () => renderExam(true) }, '日付を変える'));
-}
-
-/* ---------- おみくじ ---------- */
-const FORTUNES = [
-  ['大吉', '覚えたことが全部頭に残る日。新しい問題にどんどん挑戦！'],
-  ['中吉', 'ふくしゅうが吉。ミスした問題を見直すと運気アップ。'],
-  ['小吉', '文法の日。並べ替えを10問やってみよう。'],
-  ['吉', 'コツコツが一番。10問だけでも、えらい。'],
-  ['末吉', '漢字読みから始めると、あとで良いことがある。'],
-  ['凶', '無理は禁物。音楽を聴きながら、のんびり5問だけ。'],
+/* ---------- widgets ---------- */
+const WIDGETS = [
+  { id: 'clock', title: 'とけい', build(body) {
+    const t = h('div', { class: 'clock-t' });
+    const d = h('div', { class: 'clock-d' });
+    const s = h('div', { class: 'clock-s' });
+    body.append(t, d, s);
+    const wareki = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', { era: 'long', year: 'numeric' });
+    const tick = () => {
+      const n = new Date();
+      mount(t, `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`, h('small', null, `:${String(n.getSeconds()).padStart(2, '0')}`));
+      d.textContent = `${n.getMonth() + 1}月${n.getDate()}日（${'日月火水木金土'[n.getDay()]}）`;
+      const left = Math.round((new Date(n.getFullYear() + 1, 0, 1) - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 864e5);
+      s.textContent = `${wareki.format(n)} ・ 今年はあと${left}日`;
+    };
+    ticks.push(tick); tick();
+  } },
+  { id: 'exam', title: '試験まで', build(body) {
+    const draw = () => {
+      const e = examInfo();
+      const done = todayCount() >= ctx.prefs().goal;
+      mount(body, h('div', { class: 'exam' }, daruma(done),
+        h('div', null,
+          e.days > 0 ? h('p', { class: 'exam-n' }, 'あと', h('b', null, String(e.days)), '日')
+            : e.days === 0 ? h('p', { class: 'exam-n' }, h('b', null, '今日'), 'が本番！')
+              : h('p', { class: 'exam-n' }, 'おつかれさま！'),
+          h('p', { class: 'small muted' }, `${e.place}の N1 ・ ${e.label}`),
+          h('p', { class: 'small muted' }, done ? '今日の目標クリア。だるまに目が入ったよ。' : '今日の目標をクリアすると、目が入るよ。'))));
+    };
+    refreshers.push(draw); draw();
+  } },
+  { id: 'pomo', title: 'ポモドーロ', build(body) {
+    const WORK = 25 * 60e3; const REST = 5 * 60e3;
+    let p = loadJSON('n1q-pomo', null);
+    if (!p || typeof p !== 'object' || !['work', 'rest'].includes(p.mode)) p = { mode: 'work', end: 0, left: WORK, n: 0, day: dayStr() };
+    if (p.day !== dayStr()) { p.n = 0; p.day = dayStr(); }
+    const time = h('div', { class: 'pomo-t' });
+    const label = h('div', { class: 'small muted' });
+    const go = h('button', { class: 'btn sm primary', type: 'button' });
+    const reset = h('button', { class: 'btn sm', type: 'button' }, 'リセット');
+    body.append(h('div', { class: 'pomo' }, label, time, h('div', { class: 'row' }, go, reset)));
+    const save = () => saveJSON('n1q-pomo', p);
+    const draw = () => {
+      let left = p.end ? p.end - Date.now() : p.left;
+      if (p.end && left <= 0) {
+        ambience.ding();
+        if (p.mode === 'work') { p.n = (Number(p.n) || 0) + 1; p.mode = 'rest'; p.left = REST; } else { p.mode = 'work'; p.left = WORK; }
+        p.end = 0; left = p.left; save();
+      }
+      left = Math.max(0, Math.min(left, WORK));
+      const s = Math.ceil(left / 1000);
+      time.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      label.textContent = `${p.mode === 'work' ? '集中タイム（25分）' : 'きゅうけい（5分）'} ・ 今日 ${Number(p.n) || 0} 回`;
+      go.textContent = p.end ? 'ストップ' : 'スタート';
+    };
+    go.addEventListener('click', () => {
+      if (p.end) { p.left = Math.max(0, p.end - Date.now()); p.end = 0; } else p.end = Date.now() + (Number(p.left) || WORK);
+      save(); draw();
+    });
+    reset.addEventListener('click', () => { p.mode = 'work'; p.end = 0; p.left = WORK; save(); draw(); });
+    ticks.push(draw); draw();
+  } },
+  { id: 'wotd', title: '今日の単語', build(body) {
+    const pool = ctx.questions.filter((q) => q.type === 'yomi' && /\{(.+?)\}/.test(q.q));
+    if (!pool.length) return;
+    let i = dayIndex(pool.length, 3);
+    const draw = () => {
+      const q = pool[i];
+      const word = q.q.match(/\{(.+?)\}/)[1];
+      mount(body, 
+        h('div', { class: 'wotd-w' }, word), h('div', { class: 'wotd-r' }, q.opts[q.a]),
+        h('div', { class: 'wotd-m' }, q.exp.split('\n')[0]),
+        q.ex ? h('div', { class: 'fb-ex' }, q.ex) : null,
+        h('div', { class: 'row' }, h('button', { class: 'btn sm', type: 'button', onclick: () => { i = Math.floor(Math.random() * pool.length); draw(); } }, 'べつの単語')));
+    };
+    draw();
+  } },
+  { id: 'koto', title: '今日のことば', build(body) {
+    let i = dayIndex(KOTOWAZA.length, 7);
+    const draw = () => {
+      const [text, yomi, mean] = KOTOWAZA[i];
+      mount(body, h('div', { class: 'wotd-w' }, text), h('div', { class: 'wotd-r' }, yomi), h('div', { class: 'wotd-m' }, mean),
+        h('div', { class: 'row' }, h('button', { class: 'btn sm', type: 'button', onclick: () => { i = (i + 1) % KOTOWAZA.length; draw(); } }, 'つぎ')));
+    };
+    draw();
+  } },
+  { id: 'cal', title: '学習カレンダー', build(body) {
+    const draw = () => {
+      const days = store.get().days;
+      const today = dayStr();
+      const heat = h('div', { class: 'heat' });
+      const start = addDays(today, -(7 * 11 + new Date().getDay()));
+      for (let k = 0; ; k++) {
+        const d = addDays(start, k);
+        if (d > today) break;
+        const n = days[d] ? days[d].vocab + days[d].grammar : 0;
+        heat.append(h('i', { dataset: { l: String(n === 0 ? 0 : n < 10 ? 1 : n < 30 ? 2 : 3) }, 'data-today': d === today ? '' : null, title: `${d}：${n}問` }));
+      }
+      const st = store.streak();
+      mount(body, h('div', { class: 'pet' }, chick(), h('div', null,
+        h('p', { class: 'exam-n' }, h('b', null, String(st)), '日連続'),
+        h('p', { class: 'small muted' }, `今日 ${todayCount()}問`))), heat);
+    };
+    refreshers.push(draw); draw();
+  } },
+  { id: 'omikuji', title: 'おみくじ', build(body) {
+    const draw = () => {
+      const saved = loadJSON('n1q-omikuji', null);
+      const has = saved && saved.day === dayStr() && Number.isInteger(saved.i) && OMIKUJI[saved.i];
+      clear(body);
+      if (has) {
+        body.append(h('div', { class: 'omi' }, h('div', { class: 'omi-r' }, OMIKUJI[saved.i][0]), h('div', { class: 'omi-m' }, OMIKUJI[saved.i][1]),
+          h('p', { class: 'small muted' }, 'おみくじは一日一回。また明日！')));
+      } else {
+        body.append(h('div', { class: 'omi' }, h('p', { class: 'omi-m' }, '今日の勉強運をうらなう'),
+          h('button', { class: 'btn primary', type: 'button', onclick: () => { saveJSON('n1q-omikuji', { day: dayStr(), i: Math.floor(Math.random() * OMIKUJI.length) }); draw(); } }, 'おみくじを引く')));
+      }
+    };
+    draw();
+  } },
+  { id: 'amb', title: '環境音', build(body) {
+    const row = h('div', { class: 'row' });
+    for (const [k, name] of ambience.kinds) {
+      const b = h('button', { class: 'btn sm', type: 'button', 'aria-pressed': String(ambience.isOn(k)) }, name);
+      b.addEventListener('click', () => { const on = ambience.toggle(k); b.setAttribute('aria-pressed', String(on)); b.classList.toggle('mint', on); });
+      row.append(b);
+    }
+    const vol = h('input', { type: 'range', min: '0', max: '1', step: '0.05', value: String(ambience.volume()), 'aria-label': '環境音の音量' });
+    vol.addEventListener('input', () => ambience.setVolume(Number(vol.value)));
+    body.append(h('div', { class: 'amb' }, row, h('div', { class: 'row' }, icon('vol'), h('div', { class: 'grow' }, vol)),
+      h('p', { class: 'small muted' }, '音楽と重ねて流せます。')));
+  } },
+  { id: 'theme', title: 'テーマ', build(body) { body.append(themePicker()); } },
 ];
-const LUCKY = ['をもって', 'をよそに', 'ならでは', 'にかたくない', 'を皮切りに', 'ずくめ', 'にほかならない', 'んばかり', 'ずじまい', 'べく', 'といったらない', 'ともなく'];
 
-function renderOmikuji() {
-  const box = $('omikuji');
-  const saved = load(OMIKUJI_KEY, null);
-  if (!saved || saved.day !== today()) {
-    box.replaceChildren(
-      el('p', { class: 'omi-q' }, 'きょうの運勢は…？'),
-      el('button', { class: 'wbtn main', onclick: () => {
-        const f = Math.floor(Math.random() * FORTUNES.length);
-        const l = Math.floor(Math.random() * LUCKY.length);
-        save(OMIKUJI_KEY, { day: today(), f, l });
-        renderOmikuji();
-        box.querySelector('.omi-r')?.classList.add('boing');
-      } }, 'おみくじをひく'));
-    return;
-  }
-  const [rank, msg] = FORTUNES[saved.f % FORTUNES.length];
-  box.replaceChildren(
-    el('p', { class: 'omi-r' + (rank === '凶' ? ' bad' : '') }, rank),
-    el('p', { class: 'omi-m' }, msg),
-    el('p', { class: 'omi-l' }, 'ラッキー文法：', el('b', null, LUCKY[saved.l % LUCKY.length])),
-    el('p', { class: 'omi-n' }, 'また明日ひいてね'));
-}
-
-/* ---------- keyboard indicator (best guess: browsers can't read the OS setting) ---------- */
-const LANG = { hu: 'HUN', de: 'DEU', en: 'ENG', ja: 'JPN', fr: 'FRA', it: 'ITA', es: 'ESP', pl: 'POL', cs: 'CES', sk: 'SLK', nl: 'NLD', ru: 'RUS', zh: 'CHN', ko: 'KOR' };
-function initKeyboard() {
-  const out = $('kbd');
-  const lang = (navigator.language || 'en').slice(0, 2).toLowerCase();
-  let label = LANG[lang] || lang.toUpperCase();
-  let layout = '';
-  const show = () => {
-    out.textContent = label;
-    out.title = `キーボード：${label}${layout ? `（${layout}）` : ''} ※ブラウザから推定`;
-  };
-  const guess = (map) => {
-    const y = map('KeyY');
-    const q = map('KeyQ');
-    if (y === 'z') layout = 'QWERTZ';
-    else if (q === 'a') layout = 'AZERTY';
-    else if (y === 'y') layout = 'QWERTY';
-  };
-  show();
-  if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
-    navigator.keyboard.getLayoutMap().then((m) => { guess((c) => m.get(c)); show(); }).catch(() => {});
-  }
-  document.addEventListener('keydown', (e) => {
-    if (!e.code || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'Process' || e.isComposing || /[぀-ヿ]/.test(e.key)) {
-      label = 'JPN あ';
-    } else if (/^Key[A-Z]$/.test(e.code) && e.key.length === 1) {
-      if (label === 'JPN あ') label = LANG[lang] || 'ENG';
-      if (e.code === 'KeyY' && e.key.toLowerCase() === 'z') layout = 'QWERTZ';
-      else if (e.code === 'KeyQ' && e.key.toLowerCase() === 'a') layout = 'AZERTY';
-      else if (e.code === 'KeyY' && e.key.toLowerCase() === 'y') layout = 'QWERTY';
-    } else return;
-    show();
-  }, true);
-}
-
-/* ---------- theme picker (PC widget + せってい) ---------- */
 export function themePicker() {
-  const T = window.N1Theme;
-  const box = el('div', { class: 'themes', role: 'group', 'aria-label': 'テーマ' });
+  const box = h('div', { class: 'themes' });
   const draw = () => {
-    if (!T) return;
-    box.replaceChildren(...T.list().map((t) => el('button', {
-      class: 'theme-btn', 'aria-pressed': String(T.get() === t.id), onclick: () => T.set(t.id),
-    }, el('span', { class: `theme-sw ${t.id}`, 'aria-hidden': 'true' }), t.name)));
+    clear(box);
+    for (const [id, name] of window.N1Theme.list) {
+      box.append(h('button', { class: 'sw', type: 'button', dataset: { t: id }, 'aria-pressed': String(window.N1Theme.get() === id), onclick: () => window.N1Theme.set(id) }, h('i'), name));
+    }
   };
   draw();
-  const onTheme = () => (box.isConnected ? draw() : window.removeEventListener('n1q-theme', onTheme));
-  window.addEventListener('n1q-theme', onTheme);
+  window.addEventListener('n1q-theme', draw);
   return box;
 }
 
-export function initWidgets() {
-  $('theme-widget')?.replaceChildren(themePicker());
-  initMinimise();
-  renderExam();
-  renderOmikuji();
-  initKeyboard();
+export const widgetList = () => WIDGETS.map((w) => ({ id: w.id, title: w.title, on: !state[w.id]?.off }));
+export function setWidgetOn(id, on) {
+  state[id] = { ...state[id], off: !on };
+  saveJSON(KEY, state);
+  render();
 }
 
-/** Called every 15s by app.js — also refreshes things that change at midnight. */
-export function tickWidgets(d) {
-  $('tdate').textContent = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-  if (d.getHours() === 0 && d.getMinutes() === 0) {
-    renderExam();
-    renderOmikuji();
+let root = null;
+function render() {
+  ticks.length = 0; refreshers.length = 0;
+  clear(root);
+  for (const w of WIDGETS) {
+    if (state[w.id]?.off) continue;
+    const body = h('div', { class: 'w-body' });
+    const btn = h('button', { type: 'button' });
+    const card = h('section', { class: 'w card' }, h('div', { class: 'w-head' }, w.title, btn), body);
+    const setMin = (m) => {
+      card.classList.toggle('min', m);
+      mount(btn, icon(m ? 'plus' : 'minus'));
+      btn.setAttribute('aria-label', `${w.title}を${m ? 'ひらく' : 'たたむ'}`);
+    };
+    btn.addEventListener('click', () => {
+      const m = !card.classList.contains('min');
+      state[w.id] = { ...state[w.id], min: m };
+      saveJSON(KEY, state); setMin(m);
+    });
+    setMin(!!state[w.id]?.min);
+    try { w.build(body); } catch (e) { body.textContent = '表示できませんでした'; console.error(e); }
+    root.append(card);
   }
+}
+
+export function refreshWidgets() { refreshers.forEach((f) => { try { f(); } catch { /* keep the rest alive */ } }); }
+
+export function initWidgets(el, context) {
+  root = el; ctx = context;
+  render();
+  setInterval(() => { if (!document.hidden) ticks.forEach((f) => { try { f(); } catch { /* ignore */ } }); }, 1000);
+  store.onChange(refreshWidgets);
 }

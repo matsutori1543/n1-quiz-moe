@@ -1,99 +1,39 @@
 # N1 クイズ
 
-A fast, offline-capable JLPT N1 vocabulary and grammar quiz.
-Plain HTML/CSS/JS (no framework, no build step), hosted on GitHub Pages,
-with optional progress sync through Firebase (free Spark plan).
+JLPT N1 の語彙・文法クイズ。スマホとパソコンで使える、ビルド不要の静的サイトです（GitHub Pages）。
 
-Live: https://matsutori1543.github.io/n1-quiz-moe/
+## できること
 
-## How it works
+- 問題 399問（漢字読み・文脈規定・言い換え・用法・文法形式・文の組み立て・文章の文法）、全問に解説つき
+- 間隔反復：まちがえた問題は同じセットでもう一度、さらに翌日に出ます。正解するほど間隔がのびます（1→3→7→14→30→60日）
+- おまかせ／語彙／文法／ふくしゅう／にがて／タイプ別の練習、1日の目標、成績と学習カレンダー
+- テーマ5種類（もち・ラムネ・さくら・よふかし・怪盗）
+- ウィジェット：とけい、試験までの日数、ポモドーロ、今日の単語、今日のことば、学習カレンダー、おみくじ、環境音、テーマ
+- BGM：クラシックのピアノ録音（下記）と、ブラウザで作る環境音（雨・波など）
+- Google ログインで端末間同期（任意）。ログインしなくても全部使えます
 
-- **Sessions**: 20 questions. Due reviews first, then new questions, then older ones.
-- **Missed questions** (spaced repetition): wrong → comes back ~5 questions later and tomorrow.
-  Right → waits 1 → 3 → 7 → 14 → 30 → 60 days.
-- **Saving**: every answer is saved in the browser immediately (`localStorage`).
-  If you log in with Google, it also syncs to Firestore in the background.
-- **Offline**: a service worker caches the app and questions.
-- **Desktop vs phone**: ≥1100px wide shows the desktop with windows; smaller screens show the phone layout.
+## しくみ
 
-## Files
+- HTML / CSS / JavaScript（ES modules）のみ。外部ライブラリはログイン時に読み込む Firebase SDK だけ
+- 学習データは端末の `localStorage`（キー `n1q-v1`）に保存。ログイン中は Firestore の `users/{uid}` に同じ形で同期
+- Service Worker でオフラインでも問題が解けます（音楽はオンラインのみ）
 
-| Path | What it is |
-|---|---|
-| `index.html` | App shell + Content Security Policy |
-| `css/style.css` | All styling |
-| `js/app.js` | Screens, quiz flow, desktop widgets |
-| `js/srs.js` | Spaced repetition + session picking |
-| `js/storage.js` | Local saving, merging, import/export |
-| `js/sync.js` | Firebase login + sync (loaded lazily) |
-| `data/vocab.json`, `data/grammar.json` | Questions |
-| `img/list.json` | Filenames of images shown in the desktop picture window |
-| `firestore.rules` | Security rules to paste into Firebase |
-| `sw.js`, `manifest.json`, `icons/` | Offline + home-screen install |
+## セキュリティ
 
-## Adding questions
+- 厳しい Content-Security-Policy（`default-src 'none'`、インラインスクリプト・インラインスタイル不可、接続先は Firebase と音源ホストのみ）
+- 画面は DOM API だけで組み立て、データを HTML として解釈しません
+- 読み込んだデータ（同期・バックアップ）は必ず検証してから使います
+- `firestore.rules`：本人（指定したメールアドレスの Google アカウント）だけが自分のデータを読み書きできます。
+  Firebase コンソール → Firestore Database → ルール に貼り付け、`YOUR_EMAIL@gmail.com` を自分のアドレスに置きかえて公開してください
+- `js/sync.js` の Firebase 設定値は公開してよい値です（アクセスはルールで制限）
 
-Each question in `data/*.json`:
+## 音楽とキャラクターのライセンス
 
-```json
-{
-  "id": "v-bun-016",            // unique
-  "cat": "vocab",               // vocab | grammar
-  "type": "bunmyaku",           // yomi | bunmyaku | iikae | youhou | bunpou | narabe | bunshou
-  "q": "文（　　）文",            // {word} = underlined, （　　） = blank, ★ = star slot
-  "opts": ["正解", "b", "c", "d"],
-  "a": 0,                       // index of the correct option (options are shuffled on screen)
-  "exp": "解説\n2行目",
-  "ex": "例文（任意）",
-  "full": "並べ替えの正しい文（narabe のみ）"
-}
-```
+- バッハ「ゴルトベルク変奏曲」：Kimiko Ishizaka, Open Goldberg Variations（CC0）
+- ショパン：Musopen Complete Chopin Collection（CC0）ほか
+- ドビュッシー・サティなど：Wikimedia Commons の自由ライセンス録音（演奏者とライセンスはアプリの曲リストに表示）
+- キャラクター（みけ・だるま・ぴよ）はこのアプリのために描いたオリジナルで CC0
 
-For 文章の文法 (`bunshou`), add the passage to `data/passages.json` with blanks written as
-（１）（２）… and give each question `"pid"` (passage id) and `"n"` (blank number).
+## 問題を足すには
 
-## Adding pictures
-
-Put image files in `img/` and list their filenames in `img/list.json`, e.g. `["a.webp", "b.jpg"]`.
-Only use images you have the right to publish — this site is public.
-
-## 読書.exe (reader)
-
-Opens Aozora Bunko books (zip with ruby text, .txt, or .html) from the user's device, parses ruby and headings,
-paginates, and stores the book in IndexedDB on that device only — no book text is stored in this repo.
-English: the browser's on-device Translator API when available (newer Chrome/Edge), otherwise per-page
-Google Translate / DeepL links. Furigana toggle, vertical text (縦書き), font size, bookmarks per book.
-
-## BGM (chill-classic.radio)
-
-Streamed from Wikimedia Commons (nothing stored in this repo). Compositions are public domain;
-the recordings are public domain or free licences that require credit, which the player shows with a link.
-
-| Piece | Performer | Licence |
-|---|---|---|
-| Chopin – Nocturne Op.9 No.2 | Martha Goldstein | CC BY-SA 2.0 |
-| Chopin – Nocturne Op.37 No.2 | Olga Gurevich (Musopen) | Public domain |
-| Chopin – Nocturne Op.48 No.2 | Luke Faulkner (Musopen) | Public domain |
-| Chopin – Nocturne Op.62 No.2 | Donald Betts (Musopen) | Public domain |
-| Chopin – Nocturne No.21 (posth.) | Diana Hughes (Musopen) | Public domain |
-| Chopin – Piano Concerto No.1, II. Romanze (string quartet) | Zuzana Šimurdová et al. (Musopen) | CC0 |
-| Liszt – Liebestraum No.3 | Martha Goldstein | CC BY-SA 2.0 |
-| Tchaikovsky – The Seasons: January, June, October | Bernd Krueger (piano-midi.de) | CC BY-SA 2.0 DE |
-| Rachmaninoff – Prelude Op.32 No.10 | La Pianista | CC BY 3.0 |
-| Debussy – La fille aux cheveux de lin | Patrizia Prati | CC BY-SA 4.0 |
-| Debussy – Arabesque No.1 | Patrizia Prati | CC BY-SA 4.0 |
-| Satie – Gymnopédie No.1 | Musopen | Public domain |
-| Satie – Gnossiennes No.1, 2, 5, 6 | La Pianista | CC BY-SA 3.0 |
-| Debussy – Arabesque No.2 | Patrizia Prati | CC BY-SA 4.0 |
-| Chopin – Nocturne Op.9 No.3 | Patrizia Prati | CC BY-SA 4.0 |
-| Tchaikovsky – The Seasons: March, May, December | Bernd Krueger (piano-midi.de) | CC BY-SA 2.0 DE |
-
-## One-time setup
-
-1. **GitHub Pages**: repo Settings → Pages → Source: *Deploy from a branch* → `main` / `(root)`.
-2. **Firebase rules**: open `firestore.rules`, replace `YOUR_EMAIL@gmail.com` with your Google account
-   (only in the console, not in the repo), and publish it in Firestore → Rules.
-3. **Authorized domain**: Firebase → Authentication → Settings → Authorized domains → add `matsutori1543.github.io`.
-4. **API key restriction** (recommended): Google Cloud Console → APIs & Services → Credentials →
-   the "Browser key" → Application restrictions: *Websites* → add
-   `https://matsutori1543.github.io/*` and `https://n1-quiz-moe.firebaseapp.com/*`.
+`data/vocab.json` / `data/grammar.json` に同じ形で追加します。`id` は重ならないようにしてください（学習データが `id` にひもづきます）。

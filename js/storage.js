@@ -5,7 +5,9 @@ import { dayStr } from './srs.js';
 
 const KEY = 'n1q-v1';
 const ID_RE = /^[a-z0-9_-]{1,40}$/i;
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_RE = /^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const MAX_PROGRESS = 5000; // far more than the number of questions; keeps imports and remote data bounded
+const MAX_DAYS = 400;
 
 const empty = () => ({ v: 1, progress: {}, days: {}, updatedAt: 0 });
 const listeners = new Set();
@@ -33,18 +35,18 @@ export function clean(raw) {
   const out = empty();
   const n = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   if (raw.progress && typeof raw.progress === 'object') {
-    for (const [id, e] of Object.entries(raw.progress)) {
+    for (const [id, e] of Object.entries(raw.progress).slice(0, MAX_PROGRESS)) {
       if (!ID_RE.test(id) || !e || typeof e !== 'object' || !DAY_RE.test(e.d)) continue;
-      out.progress[id] = { b: Math.min(n(e.b), 6), d: e.d, r: n(e.r), w: n(e.w), t: n(e.t) };
+      out.progress[id] = { b: Math.min(n(e.b), 6), d: e.d, r: Math.min(n(e.r), 1e6), w: Math.min(n(e.w), 1e6), t: Math.min(n(e.t), 4e12) };
     }
   }
   if (raw.days && typeof raw.days === 'object') {
-    for (const [day, c] of Object.entries(raw.days)) {
+    for (const [day, c] of Object.entries(raw.days).slice(-MAX_DAYS)) {
       if (!DAY_RE.test(day) || !c || typeof c !== 'object') continue;
-      out.days[day] = { vocab: n(c.vocab), grammar: n(c.grammar) };
+      out.days[day] = { vocab: Math.min(n(c.vocab), 1e5), grammar: Math.min(n(c.grammar), 1e5) };
     }
   }
-  out.updatedAt = n(raw.updatedAt);
+  out.updatedAt = Math.min(n(raw.updatedAt), 4e12);
   return out;
 }
 

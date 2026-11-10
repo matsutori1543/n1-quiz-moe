@@ -1,17 +1,17 @@
 // Offline cache. Bump VERSION when the app shell changes a lot.
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = `n1q-shell-${VERSION}`;
 const EXT_CACHE = 'n1q-ext-v1';
 
 const SHELL = [
   './', 'index.html', 'css/style.css',
-  'js/app.js', 'js/srs.js', 'js/storage.js', 'js/sync.js', 'js/radio.js', 'js/widgets.js', 'js/theme.js', 'js/reader.js',
+  'js/app.js', 'js/ui.js', 'js/mascot.js', 'js/words.js', 'js/srs.js', 'js/storage.js', 'js/sync.js', 'js/player.js', 'js/widgets.js', 'js/theme.js',
   'data/vocab.json', 'data/grammar.json', 'data/passages.json',
   'manifest.json', 'icons/icon.svg', 'icons/icon-192.png',
 ];
 
-// Cross-origin files that never change for a given URL (versioned fonts / SDK).
-const EXT_OK = [/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, /^https:\/\/www\.gstatic\.com\/firebasejs\//];
+// Cross-origin files that never change for a given URL (versioned SDK).
+const EXT_OK = [/^https:\/\/www\.gstatic\.com\/firebasejs\//];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

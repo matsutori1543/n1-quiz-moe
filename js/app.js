@@ -1,704 +1,539 @@
-// N1 クイズ — main app (no framework, no build step).
+// N1 クイズ — screens and quiz flow.
+import { h, clear, mount, icon, loadJSON, saveJSON } from './ui.js';
+import { cat, say } from './mascot.js';
+import { buildSession, grade, isDue, dayStr, shuffle, STEPS } from './srs.js';
 import * as store from './storage.js';
-import { buildSession, grade, isDue, dayStr, shuffle } from './srs.js';
-import { initRadio } from './radio.js';
-import { initWidgets, tickWidgets, examInfo, themePicker } from './widgets.js';
+import { initPlayer } from './player.js';
+import { initWidgets, refreshWidgets, widgetList, setWidgetOn, themePicker, examInfo, setExam, todayCount } from './widgets.js';
+
+const $ = (id) => document.getElementById(id);
+const screen = $('screen');
+const desktop = window.matchMedia('(min-width: 1000px)');
 
 const TYPES = {
-  yomi: { label: '漢字読み', short: '読み', prompt: '＿＿の言葉の読み方として最もよいものを選びなさい。' },
-  bunmyaku: { label: '文脈規定', short: '文脈', prompt: '（　　）に入れるのに最もよいものを選びなさい。' },
-  iikae: { label: '言い換え類義', short: '言換', prompt: '＿＿の言葉に意味が最も近いものを選びなさい。' },
-  youhou: { label: '用法', short: '用法', prompt: '次の言葉の使い方として最もよいものを選びなさい。' },
-  bunpou: { label: '文法形式', short: '文法', prompt: '（　　）に入れるのに最もよいものを選びなさい。' },
-  narabe: { label: '並べ替え', short: '並替', prompt: '★に入る最もよいものを選びなさい。' },
-  bunshou: { label: '文章の文法', short: '文章', prompt: '文章を読んで、（　）に入る最もよいものを選びなさい。' },
+  yomi: { name: '漢字読み', cat: 'vocab', inst: '＿＿の言葉の読み方として、最もよいものを選びなさい。' },
+  bunmyaku: { name: '文脈規定', cat: 'vocab', inst: '（　　）に入れるのに最もよいものを選びなさい。' },
+  iikae: { name: '言い換え', cat: 'vocab', inst: '＿＿の言葉に意味が最も近いものを選びなさい。' },
+  youhou: { name: '用法', cat: 'vocab', inst: '次の言葉の使い方として、最もよいものを選びなさい。' },
+  bunpou: { name: '文法形式', cat: 'grammar', inst: '（　　）に入れるのに最もよいものを選びなさい。' },
+  narabe: { name: '文の組み立て', cat: 'grammar', inst: '★に入る最もよいものを選びなさい。' },
+  bunshou: { name: '文章の文法', cat: 'grammar', inst: '文章を読んで、（　）に入る最もよいものを選びなさい。' },
 };
-const FW = '０１２３４５６７８９';
-const fullNum = (n) => String(n).split('').map((d) => FW[Number(d)]).join('');
-const passages = new Map();
-const TYPE_ORDER = Object.keys(TYPES);
-const MODE_LABEL = { vocab: '語彙', grammar: '文法', mix: 'ミックス', review: 'ふくしゅう' };
-const SESSION_SIZE = 20;
-const SYNC_TEXT = {
-  off: '未ログイン', loading: '同期中…', ok: '同期OK', offline: 'オフライン',
-  denied: '同期できないアカウント', error: '同期エラー',
-};
-
-const $ = (sel) => document.querySelector(sel);
-const screen = $('#screen');
-const desktopMQ = window.matchMedia('(min-width:1100px)');
+const ZEN = '０１２３４５６７８９';
 
 let questions = [];
+const passages = new Map();
 let session = null;
-let lastMissed = [];
-let current = 'home';
-let sync = null;
-let syncStatus = 'off';
-let syncUser = null;
+let tab = 'home';
+let syncApi = null;
+let syncState = { s: 'off', user: null };
 
-/* ---------- tiny DOM helper (text only, never innerHTML) ---------- */
-function h(tag, props, ...kids) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of kids.flat(Infinity)) {
-    if (c == null || c === false) continue;
-    el.append(c instanceof Node ? c : String(c));
-  }
-  return el;
+/* ---------- preferences (this device only) ---------- */
+const PREFS_KEY = 'n1q-prefs';
+const prefs = (() => {
+  const p = loadJSON(PREFS_KEY, {}) || {};
+  return { goal: [10, 20, 30, 50].includes(p.goal) ? p.goal : 20, size: [10, 20, 30].includes(p.size) ? p.size : 20 };
+})();
+const savePrefs = () => saveJSON(PREFS_KEY, prefs);
+
+/* ---------- small helpers ---------- */
+function toast(text) {
+  document.querySelector('.toast')?.remove();
+  const t = h('div', { class: 'toast', role: 'status' }, text);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 2600);
 }
-
-/** {word} → underlined, （　　） → blank, ★ → red star. */
-function rich(text) {
-  return text.split(/(\{[^}]+\}|（　　）|★)/).filter(Boolean).map((part) => {
-    if (part.startsWith('{') && part.endsWith('}')) return h('u', null, part.slice(1, -1));
-    if (part === '（　　）') return h('span', { class: 'blank' }, '（　　）');
-    if (part === '★') return h('span', { class: 'star' }, '★');
-    return part;
-  });
+const railCat = $('rail-cat');
+const railSay = $('rail-say');
+function mood(m, text, anim = 'bob') {
+  mount(railCat, cat(m, anim));
+  if (text) railSay.textContent = text;
 }
-const plain = (t) => t.replace(/[{}]/g, '');
+railCat.addEventListener('click', () => mood('happy', say('pet'), 'hop'));
 
-/* ---------- data ---------- */
-function validQ(q) {
-  return q && typeof q.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(q.id) &&
-    (q.cat === 'vocab' || q.cat === 'grammar') && TYPES[q.type] &&
-    typeof q.q === 'string' && Array.isArray(q.opts) && q.opts.length === 4 &&
-    q.opts.every((o) => typeof o === 'string') && Number.isInteger(q.a) && q.a >= 0 && q.a < 4 &&
-    typeof q.exp === 'string' &&
-    (q.type !== 'bunshou' || (passages.has(q.pid) && Number.isInteger(q.n) && q.n > 0 && q.n < 10));
-}
-
-async function loadData() {
-  const files = ['data/vocab.json', 'data/grammar.json', 'data/passages.json'];
-  const [vocab, grammar, texts] = await Promise.all(files.map(async (f) => {
-    const r = await fetch(f);
-    if (!r.ok) throw new Error(f);
-    return r.json();
-  }));
-  for (const p of Array.isArray(texts) ? texts : []) {
-    if (p && typeof p.id === 'string' && typeof p.text === 'string') passages.set(p.id, p);
-  }
-  const seen = new Set();
-  for (const q of [...vocab, ...grammar]) {
-    if (!validQ(q) || seen.has(q.id)) continue;
-    seen.add(q.id);
-    questions.push(q);
-  }
-}
-
-/* ---------- numbers ---------- */
-function dueCount() {
+function stats() {
   const p = store.get().progress;
-  const t = dayStr();
-  return questions.filter((q) => isDue(p[q.id], t)).length;
+  const today = dayStr();
+  const known = questions.filter((q) => p[q.id]);
+  return {
+    seen: known.length,
+    due: questions.filter((q) => isDue(p[q.id], today)).length,
+    weak: questions.filter((q) => isWeak(p[q.id])).map((q) => q.id),
+    mastered: known.filter((q) => p[q.id].b >= 4).length,
+    right: known.reduce((n, q) => n + p[q.id].r, 0),
+    wrong: known.reduce((n, q) => n + p[q.id].w, 0),
+  };
 }
+const isWeak = (e) => !!e && e.w > 0 && (e.b <= 2 || e.w >= e.r);
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
-function accuracy() {
-  const p = store.get().progress;
-  const acc = {};
-  for (const k of [...TYPE_ORDER, 'vocab', 'grammar', 'all']) acc[k] = { r: 0, w: 0, seen: 0 };
-  for (const q of questions) {
-    const e = p[q.id];
-    if (!e) continue;
-    for (const k of [q.type, q.cat, 'all']) {
-      acc[k].r += e.r;
-      acc[k].w += e.w;
-      acc[k].seen += 1;
+/* ---------- navigation ---------- */
+const NAV = [['home', 'ホーム', 'home'], ['stats', 'せいせき', 'chart'], ['widgets', 'ウィジェット', 'grid'], ['settings', 'せってい', 'gear']];
+function buildNav() {
+  for (const host of [$('nav-rail'), $('nav-tabs')]) {
+    for (const [id, name, ic] of NAV) {
+      host.append(h('button', { class: 'tab', type: 'button', dataset: { tab: id }, onclick: () => go(id) }, icon(ic), h('span', null, name)));
     }
   }
-  for (const v of Object.values(acc)) v.pct = v.r + v.w ? Math.round((v.r / (v.r + v.w)) * 100) : null;
-  return acc;
 }
-
-function todayCounts() {
-  return store.get().days[dayStr()] || { vocab: 0, grammar: 0 };
+function go(next) {
+  if (next === 'widgets' && desktop.matches) next = 'home';
+  tab = next;
+  session = null;
+  document.body.dataset.tab = next;
+  for (const b of document.querySelectorAll('.tab')) {
+    if (b.dataset.tab === next) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+  if (next === 'home') renderHome();
+  else if (next === 'stats') renderStats();
+  else if (next === 'settings') renderSettings();
+  window.scrollTo(0, 0);
+  $('main').scrollTop = 0;
 }
-
-/* ---------- titles ---------- */
-function setTitle(num, label, score = '') {
-  const t = `${String(num ?? 0).padStart(3, '0')} ${label}`;
-  $('#ptitle').textContent = t;
-  $('#wtitle').textContent = num != null ? `もんだい ‐ ${t}` : label;
-  $('#pscore').textContent = score;
-  document.title = `${label} | N1 クイズ`;
-}
+desktop.addEventListener('change', () => { if (tab === 'widgets') go('home'); });
 
 /* ---------- home ---------- */
 function renderHome() {
-  if (current !== 'home') window.dispatchEvent(new Event('n1q-home'));
-  current = 'home';
-  session = null;
-  setTitle(null, 'ホーム');
-  const acc = accuracy();
-  const due = dueCount();
-  const tc = todayCounts();
-  const item = (go, label, count, cls) =>
-    h('button', { 'data-go': go, class: cls }, h('span', null, label), h('span', { class: 'cnt' }, count));
-  screen.replaceChildren(
-    h('div', { class: 'half tl' }),
-    h('h2', { class: 'sfx title-sfx' }, 'N1 クイズ!!'),
-    h('p', { class: 'sub' }, `れんぞく ${store.streak()}日目　きょう ${tc.vocab + tc.grammar}問`),
-    (() => {
-      const ex = examInfo();
-      return ex.days >= 0 ? h('p', { class: 'sub exam-line' }, `JLPT（${ex.place}）まで `, h('b', null, `あと${ex.days}日`)) : null;
-    })(),
-    h('div', { class: 'menu' },
-      item('vocab', '語彙', SESSION_SIZE),
-      item('grammar', '文法', SESSION_SIZE),
-      item('mix', 'ミックス', SESSION_SIZE),
-      item('review', 'ふくしゅう（ミスした問題）', due, 'rev'),
-    ),
-    h('h3', { class: 'sub types-h' }, 'タイプ別'),
-    h('div', { class: 'types' }, TYPE_ORDER.map((t) => {
-      const n = questions.filter((q) => q.type === t).length;
-      return h('button', { 'data-go': `type:${t}`, disabled: n === 0 },
-        h('span', null, TYPES[t].label),
-        h('small', null, `${questions.find((q) => q.type === t)?.cat === 'grammar' ? '文法' : '語彙'}・${n}問`));
-    })),
-    h('div', { class: 'tiles' },
-      tile(acc.vocab.pct, '%', '語彙'),
-      tile(acc.grammar.pct, '%', '文法'),
-      tile(acc.all.seen, '', 'といた問題'),
-    ),
-  );
-  updateSide();
-}
+  const s = stats();
+  const today = todayCount();
+  const streak = store.streak();
+  const heroCat = cat(s.due > 0 ? 'fight' : today >= prefs.goal ? 'happy' : 'normal', 'bob');
+  const bubble = h('div', { class: 'bubble' }, today >= prefs.goal ? '今日の目標クリア！えらい！' : s.due > 0 ? `復習が${s.due}問たまってるよ。` : say('greet'));
+  heroCat.addEventListener('click', () => { bubble.textContent = say('pet'); heroCat.classList.remove('bob'); heroCat.classList.add('hop'); });
+  const fill = h('i');
+  fill.style.width = `${Math.min(100, pct(today, prefs.goal))}%`;
+  if (today >= prefs.goal) fill.dataset.full = '';
 
-function tile(value, unit, label) {
-  return h('div', { class: 'tile' }, h('b', null, value == null ? '0' : String(value), unit), h('span', null, label));
+  const mode = (cls, title, sub, deco, m, extra = {}) => h('button', { class: `mode ${cls}`, type: 'button', onclick: () => start(m), ...extra },
+    h('b', null, title), h('span', null, sub), h('em', { 'aria-hidden': 'true' }, deco));
+  const count = (c) => questions.filter((q) => q.cat === c).length;
+  const p = store.get().progress;
+
+  mount(screen, 
+    h('section', { class: 'hero card' },
+      h('div', { class: 'row hero-hi' }, heroCat), h('div', { class: 'hero-hi' }, bubble),
+      h('div', { class: 'hero-stats' },
+        h('div', { class: 'stat' }, h('b', null, String(streak)), h('span', null, '日連続')),
+        h('div', { class: 'stat' }, h('b', null, String(today)), h('span', null, '今日の問題')),
+        h('div', { class: 'stat' }, h('b', null, String(s.due)), h('span', null, '復習まち'))),
+      h('div', { class: 'goal' }, h('span', null, '今日の目標'), h('div', { class: 'bar' }, fill), h('span', null, `${Math.min(today, prefs.goal)} / ${prefs.goal}`))),
+    h('h2', { class: 'sec' }, 'れんしゅう'),
+    h('div', { class: 'modes' },
+      mode('big', `おまかせ ${prefs.size}問`, '復習と新しい問題をまぜて出します', '混', 'mix'),
+      mode('rev', 'ふくしゅう', s.due ? `今日の復習 ${s.due}問` : '今日の復習はありません', '復', 'review', { disabled: !s.due }),
+      mode('', '語彙', `${count('vocab')}問`, '語', 'vocab'),
+      mode('', '文法', `${count('grammar')}問`, '文', 'grammar'),
+      mode('', 'にがて', s.weak.length ? `まちがえた問題 ${s.weak.length}問` : 'まだありません', '苦', { ids: s.weak.slice(0, 30) }, { disabled: !s.weak.length })),
+    h('h2', { class: 'sec' }, 'タイプ別'),
+    h('div', { class: 'types' }, Object.entries(TYPES).map(([id, t]) => {
+      const qs = questions.filter((q) => q.type === id);
+      const seen = qs.filter((q) => p[q.id]);
+      const r = seen.reduce((n, q) => n + p[q.id].r, 0); const w = seen.reduce((n, q) => n + p[q.id].w, 0);
+      return h('button', { class: 'type', type: 'button', onclick: () => start({ type: id }) },
+        h('b', null, t.name), h('small', null, `${seen.length} / ${qs.length}問`), h('span', { class: 'pct' }, r + w ? `${pct(r, r + w)}%` : '—'));
+    })),
+  );
+  mood(s.due > 0 ? 'fight' : 'normal', bubble.textContent);
 }
 
 /* ---------- quiz ---------- */
 function start(mode) {
-  const qs = buildSession(questions, store.get().progress, mode, SESSION_SIZE);
-  current = 'quiz';
-  if (!qs.length) {
-    session = null;
-    setTitle(null, mode === 'review' ? 'ふくしゅう' : 'クイズ');
-    screen.replaceChildren(
-      h('p', { class: 'empty' }, mode === 'review' ? 'いま ふくしゅうする問題はないよ！' : '問題がありません'),
-      h('div', { class: 'actions' }, h('button', { class: 'btn', 'data-go': 'home' }, 'ホーム')),
-    );
-    return;
+  const list = buildSession(questions, store.get().progress, mode, prefs.size);
+  if (!list.length) { toast('出せる問題がありません'); return; }
+  session = { mode, i: 0, items: list.map((q) => ({ q, order: shuffle([0, 1, 2, 3]), pick: null, ok: null, retry: false })) };
+  tab = 'quiz';
+  for (const b of document.querySelectorAll('.tab')) b.removeAttribute('aria-current');
+  document.body.dataset.tab = 'quiz';
+  renderQuiz();
+}
+
+function questionBody(q, item) {
+  if (q.type === 'youhou') return h('p', { class: 'q-word' }, q.q);
+  const p = h('p', { class: 'q-text' });
+  if (q.type === 'bunshou') return null;
+  const parts = q.q.split(/(\{.+?\}|（　+）|＿＿|★)/);
+  for (const s of parts) {
+    if (!s) continue;
+    if (s[0] === '{') p.append(h('u', null, s.slice(1, -1)));
+    else if (/^（　+）$/.test(s)) p.append(h('span', { class: 'blank' }, item.pick != null ? q.opts[q.a] : '　'));
+    else if (s === '＿＿') p.append(h('span', { class: 'blank' }, '　'));
+    else if (s === '★') p.append(h('span', { class: 'blank star' }, '★'));
+    else p.append(s);
   }
-  session = {
-    label: typeof mode === 'string' ? MODE_LABEL[mode] : mode.type ? TYPES[mode.type].label : 'ミスだけ',
-    items: qs.map((q) => ({ q, order: shuffle([0, 1, 2, 3]), first: true, res: null })),
-    i: 0, ok: 0, ng: 0, missed: [],
-  };
-  renderQuestion();
+  return p;
 }
 
-function segs() {
-  const s = session;
-  return h('div', { class: 'segs', 'aria-hidden': 'true' },
-    s.items.map((it, i) => h('div', { class: 'seg' + (it.res ? ' ' + it.res : i === s.i ? ' now' : '') })));
-}
-
-function renderQuestion() {
-  const s = session;
-  const it = s.items[s.i];
-  const q = it.q;
-  const t = TYPES[q.type];
-  setTitle(s.i + 1, t.label, `○${s.ok} ×${s.ng}`);
-  const long = q.type === 'youhou' || q.opts.some((o) => o.length > 9);
-  screen.replaceChildren(
-    h('div', { class: 'half tr' }),
-    h('p', { class: 'sfx top-sfx pop', 'aria-hidden': 'true' }, 'どっち!?'),
-    segs(),
-    h('p', { class: 'meta' }, `${s.label} ${s.i + 1} / ${s.items.length}　○${s.ok} ×${s.ng}${it.first ? '' : '　（もう一回）'}`),
-    h('p', { class: 'prompt' }, q.type === 'bunshou' ? t.prompt.replace('（　）', `（${fullNum(q.n)}）`) : t.prompt),
-    q.type === 'youhou' ? h('p', { class: 'word' }, q.q)
-      : q.type === 'bunshou' ? passageBox(q)
-      : h('p', { class: 'sent' }, rich(q.q)),
-    h('div', { class: 'opts' + (long ? ' long' : '') },
-      it.order.map((oi, k) => h('button', { class: 'opt', onclick: () => answer(k) },
-        h('span', { class: 'num' }, String(k + 1)), h('span', null, q.opts[oi])))),
-    h('div', { class: 'actions' },
-      h('span', { class: 'hint' }, 'キーボード 1〜4 でもOK'),
-      h('button', { class: 'btn ghost', onclick: () => answer(-1) }, 'わからない'),
-      h('button', { class: 'btn', onclick: finish }, 'やめる')),
-  );
-  updateSide();
-}
-
-/** Passage with numbered blanks; the current one is highlighted. */
 function passageBox(q) {
-  const p = passages.get(q.pid);
-  const box = h('div', { class: 'passage', tabindex: '0', 'aria-label': p.title },
-    h('h4', null, p.title),
-    p.text.split('\n').map((para) => h('p', null, para.split(/(（[０-９]+）)/).filter(Boolean).map((part) => {
-      const m = part.match(/^（([０-９]+)）$/);
-      if (!m) return part;
-      const num = [...m[1]].map((c) => FW.indexOf(c)).join('');
-      return h('span', { class: 'pblank' + (Number(num) === q.n ? ' cur' : '') }, part);
-    }))));
-  requestAnimationFrame(() => {
-    const cur = box.querySelector('.cur');
-    if (cur) box.scrollTop = Math.max(0, cur.offsetTop - box.offsetTop - box.clientHeight / 2);
-  });
+  const ps = passages.get(q.pid);
+  if (!ps) return null;
+  const box = h('div', { class: 'passage', tabindex: '0' }, h('h3', null, ps.title));
+  const answered = new Map(session.items.filter((it) => it.q.pid === q.pid && it.pick != null).map((it) => [it.q.n, it.q.opts[it.q.a]]));
+  let nowEl = null;
+  for (const para of ps.text.split('\n')) {
+    const p = h('p');
+    for (const s of para.split(/(（[０-９]+）)/)) {
+      const m = s.match(/^（([０-９]+)）$/);
+      if (!m) { p.append(s); continue; }
+      const n = Number([...m[1]].map((c) => ZEN.indexOf(c)).join(''));
+      if (n === q.n && !answered.has(n)) { nowEl = h('mark', { class: 'now' }, s); p.append(nowEl); }
+      else if (answered.has(n)) p.append(h('mark', { class: n === q.n ? 'now' : 'done' }, `（${m[1]}：${answered.get(n)}）`));
+      else p.append(h('mark', null, s));
+    }
+    box.append(p);
+  }
+  if (nowEl) requestAnimationFrame(() => { box.scrollTop = Math.max(0, nowEl.offsetTop - box.offsetTop - 60); });
   return box;
 }
 
-function answer(k) {
-  const s = session;
-  if (!s) return;
-  const it = s.items[s.i];
-  if (it.res) return;
-  const q = it.q;
-  const ok = k >= 0 && it.order[k] === q.a;
-  it.res = ok ? 'ok' : 'ng';
-  let nextDue = null;
-  if (it.first) {
+function renderQuiz() {
+  const item = session.items[session.i];
+  const q = item.q;
+  const t = TYPES[q.type];
+  const done = item.pick != null;
+  const fill = h('i');
+  fill.style.width = `${pct(session.i + (done ? 1 : 0), session.items.length)}%`;
+
+  const opts = h('div', { class: 'opts' }, item.order.map((oi, k) => {
+    let cls = 'opt' + (q.type === 'youhou' ? ' long' : '');
+    let markTxt = '';
+    if (done) {
+      if (oi === q.a) { cls += ' right'; markTxt = '○'; }
+      else if (oi === item.pick) { cls += ' wrong'; markTxt = '×'; }
+      else cls += ' dim';
+    }
+    return h('button', { class: cls, type: 'button', disabled: done, onclick: () => answer(oi) },
+      h('span', { class: 'key' }, String(k + 1)), h('span', null, q.opts[oi]), h('span', { class: 'mark' }, markTxt));
+  }));
+
+  mount(screen, 
+    h('div', { class: 'q-top' },
+      h('button', { class: 'btn icon sm', type: 'button', 'aria-label': 'やめてホームへ', onclick: () => go('home') }, icon('x')),
+      h('div', { class: 'bar' }, fill),
+      h('span', { class: 'q-count' }, `${session.i + 1} / ${session.items.length}`)),
+    h('section', { class: 'q-card card' },
+      h('div', { class: 'q-tag' }, h('span', { class: 'chip' }, t.name), item.retry ? h('span', { class: 'chip mint' }, 'もう一度') : null, h('span', { class: 'q-inst' }, t.inst)),
+      q.type === 'bunshou' ? passageBox(q) : null,
+      questionBody(q, item),
+      opts),
+    done ? feedback(item) : null,
+  );
+  if (done && !desktop.matches) screen.querySelector('.fb')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function answer(oi) {
+  const item = session.items[session.i];
+  if (item.pick != null) return;
+  const q = item.q;
+  item.pick = oi;
+  item.ok = oi === q.a;
+  if (!item.retry) {
     const st = store.get();
-    st.progress[q.id] = grade(st.progress[q.id], ok);
-    nextDue = st.progress[q.id].d;
+    st.progress[q.id] = grade(st.progress[q.id], item.ok);
     store.countAnswer(q.cat);
     store.commit();
-    if (ok) s.ok += 1;
-    else {
-      s.ng += 1;
-      s.missed.push(q.id);
-      const at = Math.min(s.i + 5, s.items.length);
-      s.items.splice(at, 0, { q, order: shuffle([0, 1, 2, 3]), first: false, res: null });
+    // A missed question comes back a few questions later in the same session.
+    if (!item.ok && q.type !== 'bunshou') {
+      const at = Math.min(session.items.length, session.i + 5);
+      session.items.splice(at, 0, { q, order: shuffle([0, 1, 2, 3]), pick: null, ok: null, retry: true });
     }
   }
-  renderFeedback(it, k, ok, nextDue);
+  mood(item.ok ? 'happy' : 'sad', say(item.ok ? 'right' : 'wrong'), item.ok ? 'hop' : 'droop');
+  renderQuiz();
 }
 
-function daysUntil(day) {
-  const [y, m, d] = day.split('-').map(Number);
-  const now = new Date();
-  return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+function feedback(item) {
+  const q = item.q;
+  const last = session.i + 1 >= session.items.length;
+  const e = store.get().progress[q.id];
+  const wait = e ? STEPS[e.b] : 1;
+  return h('section', { class: `fb card ${item.ok ? 'ok' : 'ng'}` },
+    h('div', { class: 'fb-head' }, cat(item.ok ? 'happy' : 'sad', item.ok ? 'hop' : 'droop'),
+      h('div', null, h('h2', null, item.ok ? 'せいかい！' : 'ざんねん…'),
+        h('p', { class: 'hint' }, item.retry ? 'もう一度チャレンジ' : item.ok ? `つぎは${wait}日後に出します` : 'このあともう一度、明日も出します'))),
+    h('p', { class: 'fb-ans' }, '正解：', q.type === 'narabe' ? q.full : q.opts[q.a]),
+    h('p', { class: 'fb-exp' }, q.exp),
+    q.ex ? h('p', { class: 'fb-ex' }, '例：', q.ex) : null,
+    h('div', { class: 'fb-next' },
+      h('button', { class: 'btn primary', type: 'button', id: 'next', onclick: () => next() }, last ? 'けっかを見る' : 'つぎへ', icon('arrow')),
+      h('span', { class: 'hint kbd-hint' }, 'Enter'), h('span', { class: 'hint swipe-hint' }, '← スワイプ')));
 }
 
-function renderFeedback(it, k, ok, nextDue) {
-  const s = session;
-  const q = it.q;
-  setTitle(s.i + 1, TYPES[q.type].label, `○${s.ok} ×${s.ng}`);
-
-  screen.querySelectorAll('.opt').forEach((btn, kk) => {
-    const oi = it.order[kk];
-    btn.disabled = true;
-    if (oi === q.a) {
-      btn.classList.add('right');
-      btn.append(h('span', { class: 'tag' }, '○ せいかい'));
-    } else if (kk === k) {
-      btn.classList.add('wrong');
-      btn.append(h('span', { class: 'tag' }, '× あなた'));
-    } else btn.classList.add('dim');
-  });
-
-  screen.querySelector('.top-sfx')?.remove();
-  screen.querySelector('.half')?.remove();
-  screen.querySelector('.segs').replaceWith(segs());
-  screen.querySelector('.meta').textContent =
-    `${s.label} ${s.i + 1} / ${s.items.length}　○${s.ok} ×${s.ng}${it.first ? '' : '　（もう一回）'}`;
-  screen.prepend(h('div', { class: 'banner ' + (ok ? 'speed' : 'rain') },
-    h('div', { class: 'half c' + (ok ? '' : ' gray') }),
-    h('p', { class: 'sfx ' + (ok ? 'boing' : 'shake') }, ok ? 'せいかい!!' : 'ざんねん!!')));
-
-  let note;
-  if (!it.first) note = ok ? 'よし！ おぼえたね' : 'あしたもう一回でるよ。がんばろう！';
-  else if (ok) note = `→ つぎは ${daysUntil(nextDue)}日後にでるよ`;
-  else note = '→ ふくしゅうリストに追加。このあとと明日またでるよ';
-
-  const board = h('div', { class: 'board' },
-    h('h3', null, 'かいせつ'),
-    q.exp.split('\n').map((line) => h('p', null, line)),
-    q.full ? h('p', { class: 'full' }, '正しい順番：' + q.full) : null,
-    q.ex ? h('p', { class: 'ex' }, '例）' + q.ex) : null);
-  const last = s.i >= s.items.length - 1;
-  const nextBtn = h('button', { class: 'btn', onclick: () => next() }, last ? 'けっか →' : 'つぎ →');
-  screen.querySelector('.actions').replaceWith(
-    board,
-    h('p', { class: 'note' }, note),
-    h('p', { class: 'swipe-hint', 'aria-hidden': 'true' }, '← スワイプでつぎへ'),
-    h('div', { class: 'actions' }, h('span', { class: 'hint' }, 'Enter でつぎへ'), nextBtn),
-  );
-  nextBtn.focus({ preventScroll: true });
-  if (!desktopMQ.matches) board.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  updateSide();
-}
-
-function next(fromSwipe = false) {
-  if (!session) return;
+function next(fromSwipe) {
+  if (!session || session.items[session.i].pick == null) return;
   session.i += 1;
-  if (session.i >= session.items.length) finish();
-  else {
-    renderQuestion();
-    window.scrollTo({ top: 0 });
-  }
-  if (fromSwipe) {
-    screen.classList.remove('slide-in');
-    void screen.offsetWidth; // restart the animation
-    screen.classList.add('slide-in');
-  }
+  if (session.i >= session.items.length) return finish();
+  renderQuiz();
+  if (fromSwipe) { screen.classList.remove('slide-in'); void screen.offsetWidth; screen.classList.add('slide-in'); }
+  window.scrollTo(0, 0);
+  $('main').scrollTop = 0;
 }
 
 function finish() {
-  const s = session;
-  if (!s || s.ok + s.ng === 0) return renderHome();
+  const first = session.items.filter((it) => !it.retry);
+  const right = first.filter((it) => it.ok).length;
+  const missed = first.filter((it) => !it.ok);
+  const rate = pct(right, first.length);
+  const mode = session.mode;
   session = null;
-  current = 'result';
-  lastMissed = [...new Set(s.missed)];
-  const total = s.ok + s.ng;
-  const pct = Math.round((s.ok / total) * 100);
-  const [txt, cls] = pct >= 80 ? ['やったね!!', 'speed'] : pct >= 50 ? ['まあまあ!?', 'speed'] : ['がんばれ!!', 'rain'];
-  setTitle(null, 'けっか');
-  const byId = new Map(questions.map((q) => [q.id, q]));
-  screen.replaceChildren(
-    h('div', { class: 'banner ' + cls },
-      h('div', { class: 'half c' + (cls === 'rain' ? ' gray' : '') }),
-      h('p', { class: 'sfx boing' }, txt)),
-    h('p', { class: 'big-score' }, `${s.ok}/${total}`),
-    h('p', { class: 'sub' }, `せいかい率 ${pct}%　れんぞく ${store.streak()}日目`),
-    lastMissed.length ? h('h3', { class: 'sub' }, 'ミスした問題') : h('p', { class: 'sub' }, 'ノーミス！ すごい！'),
-    h('ul', { class: 'misslist' }, lastMissed.map((id) => {
-      const q = byId.get(id);
-      const label = q.type === 'bunshou' ? `「${passages.get(q.pid).title}」${q.q}` : plain(q.q);
-      return h('li', null, label, h('br'), h('span', { class: 'a' }, '○ ' + q.opts[q.a]));
-    })),
-    h('div', { class: 'actions' },
-      lastMissed.length ? h('button', { class: 'btn alt', 'data-go': 'retry' }, 'ミスだけもういちど') : null,
-      h('button', { class: 'btn', 'data-go': 'home' }, 'ホーム')),
-  );
-  window.scrollTo({ top: 0 });
-  updateSide();
+  tab = 'result';
+  const m = rate === 100 ? 'wow' : rate >= 70 ? 'happy' : rate >= 40 ? 'normal' : 'sad';
+  const line = rate === 100 ? 'パーフェクト！' : rate >= 70 ? 'いい感じ！' : rate >= 40 ? 'おつかれさま！' : 'ここからのびるよ！';
+  const short = (q) => (q.type === 'bunshou' ? `${passages.get(q.pid)?.title || ''} ${q.q}` : q.q.replace(/[{}]/g, ''));
+  mount(screen, h('section', { class: 'result card' },
+    cat(m, 'hop'), h('h2', null, line),
+    h('p', { class: 'score' }, String(right), h('small', null, ` / ${first.length}問`)),
+    h('p', { class: 'muted' }, `正解率 ${rate}% ・ 今日 ${todayCount()}問`),
+    h('div', { class: 'fb-next' },
+      missed.length ? h('button', { class: 'btn mint', type: 'button', onclick: () => start({ ids: missed.map((it) => it.q.id) }) }, 'まちがいだけ') : null,
+      h('button', { class: 'btn primary', type: 'button', id: 'next', onclick: () => start(mode && mode.ids ? 'mix' : mode) }, 'もう1セット'),
+      h('button', { class: 'btn', type: 'button', onclick: () => go('home') }, 'ホーム')),
+    missed.length ? h('ul', { class: 'miss' }, missed.map((it) => h('li', null, `${short(it.q)} → ${it.q.type === 'narabe' ? it.q.full : it.q.opts[it.q.a]}`))) : null));
+  mood(m, line, 'hop');
+  refreshWidgets();
 }
 
 /* ---------- stats ---------- */
 function renderStats() {
-  current = 'stats';
-  session = null;
-  setTitle(null, 'せいせき');
-  const acc = accuracy();
-  const st = store.get();
-  const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = dayStr(d);
-    const c = st.days[key] || { vocab: 0, grammar: 0 };
-    days.push({ label: `${d.getMonth() + 1}/${d.getDate()}`, n: c.vocab + c.grammar });
-  }
-  const max = Math.max(1, ...days.map((d) => d.n));
-  const bar = (label, pct, text) => {
-    const fill = h('div', { class: 'fill' });
-    fill.style.width = `${pct || 0}%`;
-    return h('div', { class: 'bar' }, h('span', null, label), h('div', { class: 'track' }, fill), h('span', null, text));
-  };
-  screen.replaceChildren(
-    h('div', { class: 'card' },
-      h('h3', null, 'ぜんたい'),
-      h('p', null, `といた問題：${acc.all.seen} / ${questions.length}`),
-      h('p', null, `せいかい率：${acc.all.pct ?? '-'}%`),
-      h('p', null, `ふくしゅう待ち：${dueCount()}問　れんぞく：${store.streak()}日`)),
-    h('div', { class: 'card' },
-      h('h3', null, 'タイプ別 せいかい率'),
-      h('div', { class: 'bars' }, TYPE_ORDER.map((t) => bar(TYPES[t].label, acc[t].pct, acc[t].pct == null ? '-' : acc[t].pct + '%')))),
-    h('div', { class: 'card' },
-      h('h3', null, 'さいきん7日'),
-      h('div', { class: 'bars' }, days.map((d) => bar(d.label, (d.n / max) * 100, d.n + '問')))),
-    h('div', { class: 'actions' }, h('button', { class: 'btn', 'data-go': 'home' }, 'ホーム')),
+  const s = stats();
+  const p = store.get().progress;
+  const days = store.get().days;
+  const boxes = Array(7).fill(0);
+  for (const q of questions) if (p[q.id]) boxes[Math.min(6, p[q.id].b)] += 1;
+  const maxBox = Math.max(1, ...boxes);
+  const last7 = [...Array(7)].map((_, k) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - k));
+    const c = days[dayStr(d)]; return { d, n: c ? c.vocab + c.grammar : 0 };
+  });
+  const max7 = Math.max(1, ...last7.map((x) => x.n));
+  const bar = (v, max, h100) => { const i = h('i'); i.style.height = `${Math.round((v / max) * h100)}px`; return i; };
+  const weakQs = questions.filter((q) => isWeak(p[q.id])).sort((a, b) => p[b.id].w - p[a.id].w).slice(0, 8);
+
+  mount(screen, 
+    h('section', { class: 'panel card' }, h('h2', null, 'ぜんたい'),
+      h('div', { class: 'kv' },
+        h('div', { class: 'stat' }, h('b', null, String(s.seen)), h('span', null, `/ ${questions.length} といた`)),
+        h('div', { class: 'stat' }, h('b', null, String(s.mastered)), h('span', null, 'おぼえた')),
+        h('div', { class: 'stat' }, h('b', null, `${pct(s.right, s.right + s.wrong)}%`), h('span', null, '正解率')),
+        h('div', { class: 'stat' }, h('b', null, String(store.streak())), h('span', null, '日連続')))),
+    h('section', { class: 'panel card' }, h('h2', null, 'この7日間'),
+      h('div', { class: 'boxes' }, last7.map((x) => h('div', null, x.n ? String(x.n) : '', bar(x.n, max7, 62), '日月火水木金土'[x.d.getDay()])))),
+    h('section', { class: 'panel card' }, h('h2', null, 'タイプ別の正解率'),
+      Object.entries(TYPES).map(([id, t]) => {
+        const seen = questions.filter((q) => q.type === id && p[q.id]);
+        const r = seen.reduce((n, q) => n + p[q.id].r, 0); const w = seen.reduce((n, q) => n + p[q.id].w, 0);
+        const i = h('i'); i.style.width = `${pct(r, r + w)}%`;
+        return h('div', { class: 'trow' }, h('span', null, t.name), h('div', { class: 'bar' }, i), h('span', null, r + w ? `${pct(r, r + w)}%` : '—'));
+      })),
+    h('section', { class: 'panel card' }, h('h2', null, '記憶のレベル'),
+      h('div', { class: 'boxes' }, boxes.map((n, b) => h('div', null, n ? String(n) : '', bar(n, maxBox, 62), b === 0 ? '新' : `${STEPS[b]}日`))),
+      h('p', { class: 'note' }, '正解するたびに右へ進み、次に出るまでの日数がのびます。まちがえると「1日」に戻ります。')),
+    h('section', { class: 'panel card' }, h('h2', null, 'にがてな問題'),
+      weakQs.length ? h('ul', { class: 'miss' }, weakQs.map((q) => h('li', null, `${q.type === 'bunshou' ? TYPES.bunshou.name : q.q.replace(/[{}]/g, '')}（×${p[q.id].w}）`))) : h('p', { class: 'note' }, 'まだありません。'),
+      weakQs.length ? h('div', { class: 'fb-next' }, h('button', { class: 'btn primary', type: 'button', onclick: () => start({ ids: s.weak.slice(0, 30) }) }, 'にがてを練習する')) : null),
   );
-  window.scrollTo({ top: 0 });
 }
 
 /* ---------- settings ---------- */
-function renderSettings() {
-  current = 'settings';
-  session = null;
-  setTitle(null, 'せってい');
-  const loggedIn = !!syncUser;
-  const fileInput = h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: importFile });
-  let armed = false;
-  const resetBtn = h('button', { class: 'btn alt', onclick: () => {
-    if (!armed) {
-      armed = true;
-      resetBtn.textContent = 'ほんとうに消す？（もう一回押す）';
-      setTimeout(() => { armed = false; resetBtn.textContent = 'きろくを全部消す'; }, 4000);
-      return;
-    }
-    store.reset();
-    renderSettings();
-  } }, 'きろくを全部消す');
-
-  screen.replaceChildren(
-    h('div', { class: 'card' },
-      h('h3', null, 'テーマ'),
-      themePicker()),
-    h('div', { class: 'card' },
-      h('h3', null, '同期（パソコン ⇄ スマホ）'),
-      h('p', null, `状態：${SYNC_TEXT[syncStatus] || syncStatus}`),
-      loggedIn ? h('p', { class: 'small' }, `ログイン中：${syncUser.email || ''}`) : h('p', { class: 'small' }, 'Googleでログインすると、きろくが他の端末と同期されます。'),
-      h('div', { class: 'actions' },
-        loggedIn
-          ? [h('button', { class: 'btn ghost', onclick: () => sync?.syncNow() }, 'いますぐ同期'),
-             h('button', { class: 'btn', onclick: logout }, 'ログアウト')]
-          : h('button', { class: 'btn', onclick: login }, 'Googleでログイン'))),
-    h('div', { class: 'card' },
-      h('h3', null, 'データ'),
-      h('p', { class: 'small' }, 'きろくはこの端末に自動でほぞんされます。バックアップ用にファイルにも書き出せます。'),
-      h('div', { class: 'actions' },
-        h('button', { class: 'btn ghost', onclick: exportFile }, '書き出す'),
-        h('button', { class: 'btn ghost', onclick: () => fileInput.click() }, '読み込む'),
-        fileInput, resetBtn)),
-    h('div', { class: 'card' },
-      h('h3', null, 'ぴくちゃ窓の画像'),
-      h('p', { class: 'small' }, 'リポジトリの img/ に画像を入れて、img/list.json にファイル名を書くと、パソコン画面の「ぴくちゃ.jpg」に出ます。')),
-    h('div', { class: 'actions' }, h('button', { class: 'btn', 'data-go': 'home' }, 'ホーム')),
-  );
-  window.scrollTo({ top: 0 });
+function seg(values, current, onPick, label = (v) => String(v)) {
+  const box = h('div', { class: 'seg' });
+  const draw = (cur) => { clear(box); for (const v of values) box.append(h('button', { type: 'button', 'aria-pressed': String(v === cur), onclick: () => { onPick(v); draw(v); } }, label(v))); };
+  draw(current);
+  return box;
 }
 
-function exportFile() {
+function renderSettings() {
+  const exam = examInfo();
+  const date = h('input', { type: 'date', value: exam.date, min: '2024-01-01', max: '2099-12-31', 'aria-label': '試験日' });
+  const place = h('input', { type: 'text', value: exam.place, maxlength: '20', 'aria-label': '受験地' });
+  date.addEventListener('change', () => { if (date.value) setExam(date.value, place.value); });
+  place.addEventListener('change', () => setExam(date.value, place.value));
+
+  const toggles = h('div', { class: 'toggles' });
+  const drawToggles = () => {
+    clear(toggles);
+    for (const w of widgetList()) toggles.append(h('button', { class: 'btn sm', type: 'button', 'aria-pressed': String(w.on), onclick: () => { setWidgetOn(w.id, !w.on); drawToggles(); } }, w.title));
+  };
+  drawToggles();
+
+  const file = h('input', { type: 'file', accept: 'application/json,.json', hidden: true });
+  file.addEventListener('change', async () => {
+    const f = file.files[0];
+    file.value = '';
+    if (!f) return;
+    if (f.size > 2e6) return toast('ファイルが大きすぎます');
+    try {
+      const data = store.clean(JSON.parse(await f.text()));
+      if (!data) throw new Error('bad');
+      store.replace(store.merge(store.get(), data), 'import');
+      toast('読み込みました（今のデータと合わせました）');
+      renderSettings();
+    } catch { toast('このファイルは読み込めません'); }
+  });
+  let armed = false;
+  const resetBtn = h('button', { class: 'btn danger', type: 'button' }, 'データを全部消す');
+  resetBtn.addEventListener('click', () => {
+    if (!armed) { armed = true; resetBtn.textContent = '本当に消す？もう一度押す'; setTimeout(() => { armed = false; resetBtn.textContent = 'データを全部消す'; }, 4000); return; }
+    store.reset(); toast('消しました'); renderSettings();
+  });
+
+  mount(screen, 
+    h('section', { class: 'panel card' }, h('h2', null, 'テーマ'), themePicker()),
+    h('section', { class: 'panel card' }, h('h2', null, 'べんきょう'),
+      h('div', { class: 'field' }, h('span', null, '1日の目標'), seg([10, 20, 30, 50], prefs.goal, (v) => { prefs.goal = v; savePrefs(); refreshWidgets(); }, (v) => `${v}問`)),
+      h('div', { class: 'field' }, h('span', null, '1セットの問題数'), seg([10, 20, 30], prefs.size, (v) => { prefs.size = v; savePrefs(); }, (v) => `${v}問`)),
+      h('div', { class: 'field' }, h('span', null, '試験日'), date),
+      h('div', { class: 'field' }, h('span', null, '受験地'), place)),
+    h('section', { class: 'panel card' }, h('h2', null, 'ウィジェット'), toggles,
+      h('p', { class: 'note' }, '押すと表示・非表示が切りかわります。')),
+    h('section', { class: 'panel card', id: 'sync-panel' }, h('h2', null, icon('cloud'), 'クラウド同期'), syncBody()),
+    h('section', { class: 'panel card' }, h('h2', null, 'データ'),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn', type: 'button', onclick: exportData }, 'バックアップを保存'),
+        h('button', { class: 'btn', type: 'button', onclick: () => file.click() }, 'バックアップを読み込む'), file, resetBtn),
+      h('p', { class: 'note' }, `問題 ${questions.length}問 ・ 学習データはこの端末に保存され、ログインするとあなたのアカウントだけに同期されます。`)),
+    h('section', { class: 'panel card' }, h('h2', null, 'クレジット'),
+      h('p', { class: 'note' }, '音楽：Open Goldberg Variations（Kimiko Ishizaka, CC0）、Musopen（CC0 / パブリックドメイン）、Wikimedia Commons の自由ライセンス録音。曲ごとの演奏者とライセンスは曲リストに表示しています。'),
+      h('p', { class: 'note' }, 'キャラクター（みけ・だるま・ぴよ）はこのアプリのために描いたオリジナルで、CC0 です。')),
+  );
+}
+
+function exportData() {
   const blob = new Blob([JSON.stringify(store.get())], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const a = h('a', { href: url, download: `n1-quiz-backup-${dayStr()}.json` });
-  document.body.append(a);
-  a.click();
-  a.remove();
+  const a = h('a', { href: url, download: `n1-quiz-${dayStr()}.json` });
+  document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function importFile(e) {
-  const file = e.target.files && e.target.files[0];
-  if (!file || file.size > 5_000_000) return;
-  try {
-    const data = store.clean(JSON.parse(await file.text()));
-    if (!data) throw new Error('bad file');
-    store.replace(store.merge(store.get(), data), 'import');
-    renderSettings();
-  } catch {
-    alert('このファイルは読み込めませんでした。');
+/* ---------- sync ---------- */
+const SYNC_TEXT = { off: '同期オフ', loading: '同期中…', ok: '同期ずみ', offline: 'オフライン', error: '同期エラー', denied: '許可なし' };
+function syncBody() {
+  const { s, user } = syncState;
+  const box = h('div', null);
+  if (user) {
+    box.append(h('p', { class: 'note' }, `${user.email || 'ログイン中'} ・ ${SYNC_TEXT[s] || ''}`),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn mint', type: 'button', onclick: () => syncApi?.syncNow() }, '今すぐ同期'),
+        h('button', { class: 'btn', type: 'button', onclick: async () => { try { localStorage.removeItem('n1q-sync'); } catch { /* ignore */ } await syncApi?.logout(); } }, 'ログアウト')));
+  } else {
+    box.append(
+      h('p', { class: 'note' }, s === 'denied' ? 'このアカウントには同期の許可がありません。' : 'Google でログインすると、スマホとパソコンで学習データが同じになります。'),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'button', disabled: s === 'loading', onclick: login }, s === 'loading' ? '接続中…' : 'Google でログイン')));
   }
+  return box;
 }
-
-/* ---------- sync (loaded only when needed) ---------- */
 async function loadSync() {
-  if (sync) return sync;
+  if (syncApi) return syncApi;
   const mod = await import('./sync.js');
-  sync = mod.createSync(store, (status, user) => {
-    syncStatus = status;
-    syncUser = user;
-    $('#sync-state').textContent = SYNC_TEXT[status] || status;
-    if (status === 'ok') localStorage.setItem('n1q-sync', '1');
-    if (current === 'settings') renderSettings();
-  });
-  return sync;
+  syncApi = mod.createSync(store, onSync);
+  return syncApi;
 }
-
 async function login() {
   try {
-    const s = await loadSync();
-    await s.login();
-  } catch (err) {
-    syncStatus = 'error';
-    $('#sync-state').textContent = SYNC_TEXT.error;
-    if (current === 'settings') renderSettings();
+    onSync('loading', null);
+    const api = await loadSync();
+    try { localStorage.setItem('n1q-sync', '1'); } catch { /* ignore */ }
+    await api.login();
+  } catch (e) {
+    console.error(e);
+    onSync('error', null);
+    toast('ログインできませんでした');
   }
 }
-
-async function logout() {
-  localStorage.removeItem('n1q-sync');
-  if (sync) await sync.logout();
+function onSync(s, user) {
+  syncState = { s, user };
+  for (const el of [$('sync-top'), $('sync-rail')]) {
+    el.dataset.s = s;
+    el.lastChild.textContent = SYNC_TEXT[s] || s;
+  }
+  const panel = $('sync-panel');
+  if (panel && tab === 'settings') { while (panel.children.length > 1) panel.lastChild.remove(); panel.append(syncBody()); }
 }
+for (const el of [$('sync-top'), $('sync-rail')]) el.addEventListener('click', () => go('settings'));
 
-/* ---------- desktop side widgets ---------- */
-function tick() {
-  const d = new Date();
-  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  $('#clock').textContent = hm;
-  $('#tclock').textContent = hm;
-  $('#date').replaceChildren(
-    h('span', null, `${d.getMonth() + 1}月${d.getDate()}日`),
-    h('span', null, '日月火水木金土'[d.getDay()] + '曜日'));
-  try { tickWidgets(d); } catch (err) { console.error(err); }
-}
-window.addEventListener('n1q-exam', () => { if (current === 'home') renderHome(); });
-
-function updateSide() {
-  const due = dueCount();
-  const badge = $('#icon-due');
-  badge.textContent = String(due);
-  badge.hidden = due === 0;
-  if (!desktopMQ.matches) return;
-
-  const tc = todayCounts();
-  const li = (done, text) => h('li', { class: done ? 'done' : '' }, (done ? '☑ ' : '☐ ') + text);
-  $('#todo').replaceChildren(
-    li(tc.vocab >= SESSION_SIZE, `語彙 ${Math.min(tc.vocab, SESSION_SIZE)}/${SESSION_SIZE}問`),
-    li(tc.grammar >= SESSION_SIZE, `文法 ${Math.min(tc.grammar, SESSION_SIZE)}/${SESSION_SIZE}問`),
-    li(due === 0, `ふくしゅう のこり ${due}問`),
-    li(false, 'N1 ごうかく！！'));
-
-  const s = session;
-  $('#lcd').textContent = s
-    ? `▶ now studying… ${s.label} ${String(s.i + 1).padStart(2, '0')}/${s.items.length}`
-    : `▶ ready… 全 ${questions.length}問`;
-
-  const acc = accuracy();
-  $('#eq').replaceChildren(...TYPE_ORDER.map((t) => {
-    const bar = h('div', { class: 'eqb' });
-    bar.style.height = `${Math.max(3, acc[t].pct ?? 0) * 0.8}%`;
-    return h('div', { class: 'eqc', title: `${TYPES[t].label} ${acc[t].pct ?? '-'}%` }, bar, h('span', null, TYPES[t].short));
-  }));
-  const weakest = TYPE_ORDER.filter((t) => acc[t].pct != null).sort((a, b) => acc[a].pct - acc[b].pct).slice(0, 3);
-  $('#tracks').replaceChildren(...(weakest.length
-    ? weakest.map((t, i) => h('li', null, h('span', null, `0${i + 1}. ${TYPES[t].label}`), h('b', null, `${acc[t].pct}%`)))
-    : [h('li', null, h('span', null, '01. まだデータなし'), h('b', null, '--'))]));
-}
-
-/* ---------- picture window ---------- */
-let pics = [];
-let picIndex = 0;
-async function loadPics() {
-  if (!desktopMQ.matches) return;
-  try {
-    const r = await fetch('img/list.json', { cache: 'no-cache' });
-    if (!r.ok) return;
-    const list = await r.json();
-    pics = shuffle((Array.isArray(list) ? list : []).filter((n) => typeof n === 'string' && /^[\w.-]+\.(png|jpe?g|webp|gif|avif)$/i.test(n)));
-    showPic();
-  } catch { /* no pictures: keep placeholder */ }
-}
-function showPic() {
-  if (!pics.length) return;
-  picIndex %= pics.length;
-  $('#pic').replaceChildren(h('img', { src: 'img/' + encodeURIComponent(pics[picIndex]), alt: '', decoding: 'async' }));
-}
-$('#pic-next').addEventListener('click', () => { picIndex += 1; showPic(); });
-
-/* ---------- navigation & keys ---------- */
-function go(target) {
-  if (target === 'home') renderHome();
-  else if (target === 'stats') renderStats();
-  else if (target === 'settings') renderSettings();
-  else if (target === 'reader') { import('./reader.js').then((m) => m.openReader()); return; }
-  else if (target === 'retry') start({ ids: lastMissed });
-  else if (target.startsWith('type:') && TYPES[target.slice(5)]) start({ type: target.slice(5) });
-  else if (MODE_LABEL[target]) start(target);
-}
-
-document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-go]');
-  if (el) go(el.getAttribute('data-go'));
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input,textarea,select,dialog')) return;
+  if (session) {
+    const item = session.items[session.i];
+    if (item.pick == null && /^[1-4]$/.test(e.key)) { e.preventDefault(); answer(item.order[Number(e.key) - 1]); }
+    else if (item.pick != null && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight')) { e.preventDefault(); next(); }
+    else if (e.key === 'Escape') go('home');
+  } else if (tab === 'result' && e.key === 'Enter') { e.preventDefault(); $('next')?.click(); }
 });
 
-// Phone: drag the question sideways; let go past the threshold (or flick) to go to the next one.
+/* ---------- phone: drag the card sideways to move on ---------- */
 (() => {
-  let x0 = null;
-  let y0 = null;
-  let t0 = 0;
-  let axis = null;
-  let dx = 0;
-  const canGo = () => (session && session.items[session.i]?.res) || current === 'result';
+  let x0 = null; let y0 = 0; let t0 = 0; let axis = null; let dx = 0;
+  const canGo = () => !!session && session.items[session.i].pick != null;
   const reset = (animate) => {
-    screen.style.transition = animate ? 'transform .22s ease-out, opacity .22s ease-out' : '';
-    screen.style.transform = '';
-    screen.style.opacity = '';
+    screen.style.transition = animate ? 'transform .2s ease-out, opacity .2s ease-out' : '';
+    screen.style.transform = ''; screen.style.opacity = '';
   };
   screen.addEventListener('touchstart', (e) => {
-    if (desktopMQ.matches || e.touches.length !== 1 || e.target.closest('input,textarea')) { x0 = null; return; }
-    x0 = e.touches[0].clientX;
-    y0 = e.touches[0].clientY;
-    t0 = Date.now();
-    axis = null;
-    dx = 0;
+    if (desktop.matches || e.touches.length !== 1 || !session || e.target.closest('input')) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now(); axis = null; dx = 0;
     screen.style.transition = '';
   }, { passive: true });
   screen.addEventListener('touchmove', (e) => {
     if (x0 == null) return;
-    const mx = e.touches[0].clientX - x0;
-    const my = e.touches[0].clientY - y0;
-    if (!axis && (Math.abs(mx) > 8 || Math.abs(my) > 8)) axis = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+    dx = e.touches[0].clientX - x0;
+    const dy = e.touches[0].clientY - y0;
+    if (!axis && Math.abs(dx) + Math.abs(dy) > 8) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
     if (axis !== 'x') return;
-    dx = mx;
     const free = dx < 0 && canGo();
-    const shown = free ? dx : dx * 0.2; // locked or wrong direction: just a little rubber-band
-    screen.style.transform = `translateX(${shown}px)`;
-    screen.style.opacity = free ? String(Math.max(0.35, 1 + dx / (screen.offsetWidth * 1.2))) : '';
+    screen.style.transform = `translateX(${free ? dx : dx * 0.2}px)`;
+    screen.style.opacity = free ? String(Math.max(0.35, 1 + dx / 500)) : '';
   }, { passive: true });
   const end = () => {
     if (x0 == null) return;
-    x0 = null;
-    if (axis !== 'x') return reset(false);
     const speed = Math.abs(dx) / Math.max(1, Date.now() - t0);
-    const go = dx < 0 && canGo() && (dx < -screen.offsetWidth * 0.22 || (speed > 0.4 && dx < -30));
-    if (!go) return reset(true);
+    const ok = axis === 'x' && dx < 0 && canGo() && (dx < -window.innerWidth * 0.22 || (speed > 0.4 && dx < -30));
+    x0 = null;
+    if (!ok) return reset(true);
     screen.style.transition = 'transform .16s ease-in, opacity .16s ease-in';
-    screen.style.transform = 'translateX(-105%)';
-    screen.style.opacity = '0';
-    setTimeout(() => {
-      reset(false);
-      if (current === 'result') renderHome();
-      else next(true);
-    }, 160);
+    screen.style.transform = 'translateX(-105%)'; screen.style.opacity = '0';
+    setTimeout(() => { reset(false); next(true); }, 160);
   };
-  screen.addEventListener('touchend', end, { passive: true });
-  screen.addEventListener('touchcancel', () => { x0 = null; reset(true); }, { passive: true });
+  screen.addEventListener('touchend', end);
+  screen.addEventListener('touchcancel', () => { x0 = null; reset(true); });
 })();
-
-document.addEventListener('keydown', (e) => {
-  if (!session || e.target.closest('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
-  const it = session.items[session.i];
-  if (!it) return;
-  if (!it.res && /^[1-4]$/.test(e.key)) {
-    e.preventDefault();
-    answer(Number(e.key) - 1);
-  } else if (it.res && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight')) {
-    e.preventDefault();
-    next();
-  }
-});
-
-store.onChange((_, source) => {
-  if (source === 'remote' || source === 'import' || source === 'reset') {
-    if (current === 'home') renderHome();
-    else if (current === 'stats') renderStats();
-  }
-  updateSide();
-});
-
-desktopMQ.addEventListener('change', () => { updateSide(); if (!pics.length) loadPics(); });
 
 /* ---------- boot ---------- */
 async function boot() {
-  for (const init of [initWidgets, initRadio]) {
-    try { init(); } catch (err) { console.error(err); }
-  }
-  tick();
-  setInterval(tick, 15000);
-  screen.replaceChildren(h('p', { class: 'empty' }, 'よみこみ中…'));
+  buildNav();
+  $('sync-top').append(h('span', { class: 'dot' }), h('span', null, SYNC_TEXT.off));
+  $('sync-rail').append(h('span', { class: 'dot' }), h('span', null, SYNC_TEXT.off));
+  mood('normal', say('greet'));
+  try { initPlayer($('player'), $('tracks')); } catch (e) { console.error(e); }
+
   try {
-    await loadData();
-  } catch {
-    screen.replaceChildren(h('p', { class: 'empty' }, '問題データを読み込めませんでした。再読み込みしてね。'));
+    const get = async (f) => { const r = await fetch(f); if (!r.ok) throw new Error(f); return r.json(); };
+    const [v, g, ps] = await Promise.all([get('data/vocab.json'), get('data/grammar.json'), get('data/passages.json')]);
+    questions = [...v, ...g].filter((q) => q && TYPES[q.type] && Array.isArray(q.opts) && q.opts.length === 4);
+    for (const p of ps) passages.set(p.id, p);
+  } catch (e) {
+    console.error(e);
+    mount(screen, h('section', { class: 'panel card center' }, cat('sad'), h('p', null, '問題を読み込めませんでした。'),
+      h('button', { class: 'btn primary', type: 'button', onclick: () => location.reload() }, 'もう一度')));
     return;
   }
-  renderHome();
-  loadPics();
-  if (localStorage.getItem('n1q-sync') === '1') {
-    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
-    idle(() => loadSync().catch(() => {}));
+  try { initWidgets($('widgets'), { questions, prefs: () => prefs }); } catch (e) { console.error(e); }
+  store.onChange((_, source) => { if (source !== 'local' && !session) { if (tab === 'home') renderHome(); else if (tab === 'stats') renderStats(); } });
+  go('home');
+
+  if (loadJSON('n1q-sync', null) === 1) {
+    const run = () => loadSync().catch((e) => { console.error(e); onSync('offline', null); });
+    if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 3000 }); else setTimeout(run, 800);
   }
-  if ('serviceWorker' in navigator) {
-    // When a new version takes over, reload once (but never in the middle of a quiz).
-    const hadController = !!navigator.serviceWorker.controller;
-    let pending = false;
+  try { indexedDB.deleteDatabase('n1q-books'); } catch { /* the old reader's storage; nothing to do if it is missing */ }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    let had = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!hadController) return;
-      if (current === 'home' || current === 'settings' || current === 'stats') location.reload();
-      else pending = true;
+      if (had && !session) location.reload();
+      had = true;
     });
-    window.addEventListener('n1q-home', () => { if (pending) location.reload(); });
-    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

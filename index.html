@@ -3,120 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com; media-src https://upload.wikimedia.org https://archive.org https://*.archive.org; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://n1-quiz-moe.firebaseapp.com https://accounts.google.com https://apis.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; media-src https://upload.wikimedia.org https://archive.org https://*.archive.org; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://n1-quiz-moe.firebaseapp.com https://accounts.google.com https://apis.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#2a74b3">
+<meta name="theme-color" content="#fff3dc">
 <script src="js/theme.js"></script>
 <title>N1 クイズ</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&display=swap&text=N1%20%E3%82%AF%E3%82%A4%E3%82%BA%21%3F%E3%81%A9%E3%81%A3%E3%81%A1%E3%81%9B%E3%81%84%E3%81%8B%E3%81%96%E3%82%93%E3%81%AD%E3%81%8C%E3%81%B0%E3%82%8C%E3%82%84%E3%81%9F%E3%81%BE%E3%81%82%25023456789%3A%E3%81%8D%E3%82%87%E3%81%86">
 <link rel="stylesheet" href="css/style.css">
+<link rel="modulepreload" href="js/app.js">
 </head>
-<body>
-<div class="deco" aria-hidden="true"><div class="cres1"></div><div class="cres2"></div><div class="ring"></div></div>
-
-<header class="phead">
-  <span class="badge">N1</span>
-  <h1 id="ptitle">000 ホーム</h1>
-  <span id="pscore" class="pscore"></span>
-</header>
-
-<div id="desk">
-  <nav class="icons" aria-label="モード">
-    <button class="icon" data-go="vocab"><span class="ic ic-blue">語</span><span class="l">語彙</span></button>
-    <button class="icon" data-go="grammar"><span class="ic ic-red">文</span><span class="l">文法</span></button>
-    <button class="icon" data-go="mix"><span class="ic ic-green">混</span><span class="l">ミックス</span></button>
-    <button class="icon" data-go="review"><span class="ic ic-ring">✓</span><span class="l">ふくしゅう</span><span class="dot" id="icon-due" hidden></span></button>
-    <button class="icon" data-go="reader"><span class="ic ic-book">本</span><span class="l">読書</span></button>
-    <button class="icon" data-go="stats"><span class="ic ic-chart">▮</span><span class="l">せいせき</span></button>
-    <button class="icon" data-go="settings"><span class="ic ic-gear">⚙</span><span class="l">せってい</span></button>
-  </nav>
-
-  <aside class="side side-l">
-    <section class="win" id="pic-win">
-      <div class="tb"><span class="tt">ぴくちゃ.jpg</span><button class="tbtn" id="pic-next" aria-label="つぎの画像">›</button></div>
-      <div class="pic" id="pic"><p class="pic-empty">img/ フォルダの画像がここに出る</p></div>
-    </section>
-    <section class="win" id="player-win">
-      <div class="tb"><span class="tt">♪ せいせき.player</span></div>
-      <div class="player">
-        <div class="lcd" id="lcd">▶ ready…</div>
-        <div class="eq" id="eq"></div>
-        <ol class="tracks" id="tracks"></ol>
-      </div>
-    </section>
-  </aside>
-
-  <main class="win main-win" id="main">
-    <div class="tb"><span class="tt" id="wtitle">ホーム</span><button class="tbtn" data-go="home" aria-label="ホームにもどる">×</button></div>
-    <div id="screen" class="screen" aria-live="polite"></div>
-  </main>
-
-  <aside class="side side-r">
-    <section class="win widget" data-w="clock">
-      <div class="tb"><span class="tt">とけい.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
-      <div class="wbody clock"><span class="clock-t" id="clock">--:--</span><span class="clock-d" id="date"></span></div>
-    </section>
-    <section class="win widget" data-w="exam">
-      <div class="tb"><span class="tt">試験まで.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
-      <div class="wbody exam" id="exam"></div>
-    </section>
-    <section class="win widget" data-w="todo">
-      <div class="tb"><span class="tt">todo.txt</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
-      <div class="wbody paper"><ul id="todo"></ul></div>
-    </section>
-    <section class="win widget" data-w="theme">
-      <div class="tb"><span class="tt">テーマ.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
-      <div class="wbody" id="theme-widget"></div>
-    </section>
-    <section class="win widget" data-w="omikuji">
-      <div class="tb"><span class="tt">おみくじ.exe</span><button class="tbtn wmin" aria-label="最小化">–</button></div>
-      <div class="wbody omikuji" id="omikuji"></div>
-    </section>
-  </aside>
-</div>
-
-<section class="win radio" id="radio" aria-label="BGM プレーヤー">
-  <div class="tb"><span class="tt">♪ chill-classic.radio</span><button class="tbtn" id="radio-min" aria-label="最小化">–</button></div>
-  <div class="radio-body">
-    <div class="lcd" id="r-title">♪ ▶ を押すと再生</div>
-    <p class="r-credit" id="r-credit"></p>
-    <div class="r-seek"><span id="r-cur">0:00</span><input type="range" id="r-seek" min="0" max="1000" value="0" step="1" aria-label="再生位置"><span id="r-dur">0:00</span></div>
-    <div class="r-ctrl">
-      <button class="rbtn" id="r-prev" aria-label="前の曲">◀◀</button>
-      <button class="rbtn play" id="r-play" aria-label="再生">▶</button>
-      <button class="rbtn" id="r-next" aria-label="次の曲">▶▶</button>
-      <input type="range" id="r-vol" min="0" max="1" step="0.05" value="0.5" aria-label="音量">
+<body data-tab="home">
+<div class="app">
+  <aside class="rail" aria-label="メニュー">
+    <div class="logo"><b>N1</b>クイズ</div>
+    <nav class="nav" id="nav-rail"></nav>
+    <div class="rail-foot">
+      <div class="bubble down" id="rail-say"></div>
+      <div id="rail-cat" role="button" tabindex="0" aria-label="みけをなでる"></div>
+      <button class="chip plain sync-chip" id="sync-rail" type="button"></button>
     </div>
-    <button class="r-listbtn" id="r-listbtn" aria-expanded="false">曲リスト ▾</button>
-    <ol class="r-list" id="r-list" hidden></ol>
-  </div>
-</section>
-
-<footer class="taskbar">
-  <button class="start" data-go="home">スタート</button>
-  <button class="task" data-go="reader" data-task="reader">読書</button>
-  <button class="task" data-go="stats">♪ せいせき</button>
-  <button class="task" data-go="settings">⚙ せってい</button>
-  <span class="tray">
-    <span id="sync-state">未ログイン</span>
-    <span class="kbd" id="kbd" title="キーボード（ブラウザから推定）">ENG</span>
-    <span class="tclock"><span id="tclock">--:--</span><span id="tdate">----/--/--</span></span>
-  </span>
-</footer>
-
-<nav class="pnav" aria-label="メニュー">
-  <button class="btn" data-go="home">ホーム</button>
-  <button class="btn" data-go="reader">読書</button>
-  <button class="btn" data-go="stats">せいせき</button>
-  <button class="btn" data-go="settings">せってい</button>
-</nav>
-
+  </aside>
+  <main class="main" id="main">
+    <header class="topbar">
+      <div class="logo"><b>N1</b>クイズ</div>
+      <button class="chip plain sync-chip" id="sync-top" type="button"></button>
+    </header>
+    <div class="screen" id="screen"><p class="center muted">よみこみ中…</p></div>
+  </main>
+  <aside class="side" id="side" aria-label="ウィジェット"><div class="widgets" id="widgets"></div></aside>
+  <footer class="player" id="player" aria-label="音楽プレーヤー"></footer>
+</div>
+<nav class="tabs" id="nav-tabs" aria-label="メニュー"></nav>
+<dialog id="tracks" aria-label="曲リスト"></dialog>
+<noscript><p class="center">このアプリは JavaScript が必要です。</p></noscript>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
