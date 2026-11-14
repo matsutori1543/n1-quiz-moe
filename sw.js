@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION when the app shell changes a lot.
-const VERSION = 'v8';
+const VERSION = 'v9';
 const SHELL_CACHE = `n1q-shell-${VERSION}`;
 const EXT_CACHE = 'n1q-ext-v1';
 

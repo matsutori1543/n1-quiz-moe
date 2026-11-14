@@ -416,3 +416,7 @@ input[type=date], input[type=text] { min-height: 38px; padding: 4px 10px; backgr
   .toast { bottom: 84px; }
   .fb { scroll-margin-bottom: 16px; }
 }
+
+.screen.slide-back { animation: slideback .24s ease-out; }
+@keyframes slideback { from { transform: translateX(-60%); opacity: 0; } }
+.q-top .btn:disabled { opacity: .3; }

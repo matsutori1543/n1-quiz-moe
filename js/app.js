@@ -185,7 +185,7 @@ function passageBox(q) {
   return box;
 }
 
-function renderQuiz() {
+function renderQuiz(review) {
   const item = session.items[session.i];
   const q = item.q;
   const t = TYPES[q.type];
@@ -209,7 +209,8 @@ function renderQuiz() {
     h('div', { class: 'q-top' },
       h('button', { class: 'btn icon sm', type: 'button', 'aria-label': 'やめてホームへ', onclick: () => go('home') }, icon('x')),
       h('div', { class: 'bar' }, fill),
-      h('span', { class: 'q-count' }, `${session.i + 1} / ${session.items.length}`)),
+      h('span', { class: 'q-count' }, `${session.i + 1} / ${session.items.length}`),
+      h('button', { class: 'btn icon sm', type: 'button', 'aria-label': 'まえの問題を見る', disabled: session.i === 0, onclick: () => prev() }, icon('back'))),
     h('section', { class: 'q-card card' },
       h('div', { class: 'q-tag' }, h('span', { class: 'chip' }, t.name), item.retry ? h('span', { class: 'chip mint' }, 'もう一度') : null, h('span', { class: 'q-inst' }, t.inst)),
       q.type === 'bunshou' ? passageBox(q) : null,
@@ -217,7 +218,7 @@ function renderQuiz() {
       opts),
     done ? feedback(item) : null,
   );
-  if (done && !desktop.matches) screen.querySelector('.fb')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (done && !review && !desktop.matches) screen.querySelector('.fb')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function answer(oi) {
@@ -255,15 +256,29 @@ function feedback(item) {
     q.ex ? h('p', { class: 'fb-ex' }, '例：', q.ex) : null,
     h('div', { class: 'fb-next' },
       h('button', { class: 'btn primary', type: 'button', id: 'next', onclick: () => next() }, last ? 'けっかを見る' : 'つぎへ', icon('arrow')),
-      h('span', { class: 'hint kbd-hint' }, 'Enter'), h('span', { class: 'hint swipe-hint' }, '← スワイプ')));
+      h('span', { class: 'hint kbd-hint' }, 'Enter'), h('span', { class: 'hint swipe-hint' }, '← つぎ ／ まえ →')));
 }
 
+function slide(cls) {
+  screen.classList.remove('slide-in', 'slide-back'); void screen.offsetWidth; screen.classList.add(cls);
+}
 function next(fromSwipe) {
   if (!session || session.items[session.i].pick == null) return;
   session.i += 1;
   if (session.i >= session.items.length) return finish();
-  renderQuiz();
-  if (fromSwipe) { screen.classList.remove('slide-in'); void screen.offsetWidth; screen.classList.add('slide-in'); }
+  // Still inside already-answered questions (after going back): show them as a review, from the top.
+  renderQuiz(session.items[session.i].pick != null);
+  if (fromSwipe) slide('slide-in');
+  window.scrollTo(0, 0);
+  $('main').scrollTop = 0;
+}
+
+/** Look at the previous (already answered) question again. */
+function prev(fromSwipe) {
+  if (!session || session.i === 0) return;
+  session.i -= 1;
+  renderQuiz(true);
+  if (fromSwipe) slide('slide-back');
   window.scrollTo(0, 0);
   $('main').scrollTop = 0;
 }
@@ -458,6 +473,7 @@ document.addEventListener('keydown', (e) => {
     const item = session.items[session.i];
     if (item.pick == null && /^[1-4]$/.test(e.key)) { e.preventDefault(); answer(item.order[Number(e.key) - 1]); }
     else if (item.pick != null && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight')) { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
     else if (e.key === 'Escape') go('home');
   } else if (tab === 'result' && e.key === 'Enter') { e.preventDefault(); $('next')?.click(); }
 });
@@ -466,6 +482,7 @@ document.addEventListener('keydown', (e) => {
 (() => {
   let x0 = null; let y0 = 0; let t0 = 0; let axis = null; let dx = 0;
   const canGo = () => !!session && session.items[session.i].pick != null;
+  const canBack = () => !!session && session.i > 0;
   const reset = (animate) => {
     screen.style.transition = animate ? 'transform .2s ease-out, opacity .2s ease-out' : '';
     screen.style.transform = ''; screen.style.opacity = '';
@@ -481,19 +498,21 @@ document.addEventListener('keydown', (e) => {
     const dy = e.touches[0].clientY - y0;
     if (!axis && Math.abs(dx) + Math.abs(dy) > 8) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
     if (axis !== 'x') return;
-    const free = dx < 0 && canGo();
+    const free = dx < 0 ? canGo() : canBack();
     screen.style.transform = `translateX(${free ? dx : dx * 0.2}px)`;
-    screen.style.opacity = free ? String(Math.max(0.35, 1 + dx / 500)) : '';
+    screen.style.opacity = free ? String(Math.max(0.35, 1 - Math.abs(dx) / 500)) : '';
   }, { passive: true });
   const end = () => {
     if (x0 == null) return;
     const speed = Math.abs(dx) / Math.max(1, Date.now() - t0);
-    const ok = axis === 'x' && dx < 0 && canGo() && (dx < -window.innerWidth * 0.22 || (speed > 0.4 && dx < -30));
+    const far = Math.abs(dx) > window.innerWidth * 0.22 || (speed > 0.4 && Math.abs(dx) > 30);
+    const fwd = dx < 0;
+    const ok = axis === 'x' && far && (fwd ? canGo() : canBack());
     x0 = null;
     if (!ok) return reset(true);
     screen.style.transition = 'transform .16s ease-in, opacity .16s ease-in';
-    screen.style.transform = 'translateX(-105%)'; screen.style.opacity = '0';
-    setTimeout(() => { reset(false); next(true); }, 160);
+    screen.style.transform = `translateX(${fwd ? '-105%' : '105%'})`; screen.style.opacity = '0';
+    setTimeout(() => { reset(false); if (fwd) next(true); else prev(true); }, 160);
   };
   screen.addEventListener('touchend', end);
   screen.addEventListener('touchcancel', () => { x0 = null; reset(true); });
