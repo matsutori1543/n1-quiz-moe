@@ -407,3 +407,12 @@ input[type=date], input[type=text] { min-height: 38px; padding: 4px 10px; backgr
 :root[data-theme="kaitou"] .q-count { color: #fff; }
 .result .fb-next { flex-wrap: wrap; justify-content: center; } .result .fb-next .btn { flex: 1 1 8em; }
 .fb { scroll-margin-bottom: 84px; scroll-margin-top: 10px; }
+/* phone: no floating music bar; the player lives at the top of the ウィジェット tab */
+@media (max-width: 999.98px) {
+  .player { display: none; }
+  body[data-tab="widgets"] .player { display: grid; position: static; order: -1; margin: 14px 14px 0; }
+  .main, .side { padding-bottom: 90px; }
+  body[data-tab="quiz"] .main { padding-bottom: 24px; }
+  .toast { bottom: 84px; }
+  .fb { scroll-margin-bottom: 16px; }
+}
