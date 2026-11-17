@@ -15,6 +15,7 @@ const TYPES = {
   bunmyaku: { name: '文脈規定', cat: 'vocab', inst: '（　　）に入れるのに最もよいものを選びなさい。' },
   iikae: { name: '言い換え', cat: 'vocab', inst: '＿＿の言葉に意味が最も近いものを選びなさい。' },
   youhou: { name: '用法', cat: 'vocab', inst: '次の言葉の使い方として、最もよいものを選びなさい。' },
+  giongo: { name: 'オノマトペ', cat: 'vocab', inst: '（　　）に入れるのに最もよいものを選びなさい。' },
   bunpou: { name: '文法形式', cat: 'grammar', inst: '（　　）に入れるのに最もよいものを選びなさい。' },
   narabe: { name: '文の組み立て', cat: 'grammar', inst: '★に入る最もよいものを選びなさい。' },
   bunshou: { name: '文章の文法', cat: 'grammar', inst: '文章を読んで、（　）に入る最もよいものを選びなさい。' },
