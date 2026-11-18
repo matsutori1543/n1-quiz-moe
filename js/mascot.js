@@ -1,6 +1,8 @@
-// Original characters drawn for this app (みけ the calico cat, だるま, ぴよ).
-// Released as CC0: use them however you like.
-import { svg } from './ui.js';
+// Characters.
+// - ずんだもん: official illustrations from the 東北ずん子・ずんだもんプロジェクト (© SSS合同会社),
+//   used under the project's character guidelines (free for personal, non-commercial use).
+// - みけ (calico cat), だるま, ぴよ: original drawings made for this app, released as CC0.
+import { svg, h } from './ui.js';
 
 const EYES = {
   normal: '<ellipse class="m-k" cx="44" cy="70" rx="4.2" ry="5.4"/><ellipse class="m-k" cx="76" cy="70" rx="4.2" ry="5.4"/><circle class="m-w" cx="45.5" cy="68" r="1.5"/><circle class="m-w" cx="77.5" cy="68" r="1.5"/>',
@@ -74,7 +76,7 @@ const LINES = {
   right: ['せいかい！', 'やったね！', 'その調子！', 'すごい！', 'ばっちり！'],
   wrong: ['おしい！', 'だいじょうぶ、また出すね。', 'ここで覚えちゃおう。', 'どんまい！'],
 };
-export function say(kind) {
+function sayMike(kind) {
   if (kind === 'greet') {
     const hr = new Date().getHours();
     kind = hr < 5 ? 'night' : hr < 11 ? 'morning' : hr < 17 ? 'day' : hr < 22 ? 'evening' : 'night';
@@ -82,3 +84,59 @@ export function say(kind) {
   const a = LINES[kind] || LINES.pet;
   return a[Math.floor(Math.random() * a.length)];
 }
+
+/* ---------- which character is on screen ---------- */
+const CHARA_KEY = 'n1q-chara';
+export const CHARAS = [['zunda', 'ずんだもん'], ['mike', 'みけ']];
+export function chara() {
+  try { return localStorage.getItem(CHARA_KEY) === 'mike' ? 'mike' : 'zunda'; } catch { return 'zunda'; }
+}
+export function setChara(c) {
+  try { localStorage.setItem(CHARA_KEY, c === 'mike' ? 'mike' : 'zunda'); } catch { /* ignore */ }
+}
+
+// mood -> illustration file in img/zunda/
+const ZPIC = { normal: 'normal', happy: 'happy', sad: 'sad', sleepy: 'sleepy', wink: 'happy', wow: 'wow', fight: 'fight' };
+function zimg(mood, cls, kind) {
+  const name = ZPIC[mood] || 'normal';
+  const img = h('img', { src: `img/zunda/${name}${kind === 'face' ? '-face' : ''}.webp`, alt: '', draggable: 'false', decoding: 'async' });
+  return h('span', { class: `mascot zun ${kind} ${cls}` }, img);
+}
+/** Small, square character picture (head and shoulders). */
+export function face(mood = 'normal', cls = '') {
+  return chara() === 'zunda' ? zimg(mood, cls, 'face') : cat(mood, cls);
+}
+/** Full-body picture, for the bigger spots. */
+export function figure(mood = 'normal', cls = '') {
+  return chara() === 'zunda' ? zimg(mood, cls, 'fig') : cat(mood, cls);
+}
+
+/* ---------- lines ---------- */
+// [voice file id or '', kind, text]. Lines with an id have a matching voice/<id>.mp3 when voices are installed.
+export const ZLINES = [
+  ['01', 'right', '正解なのだ！'], ['02', 'right', 'やったのだ！'], ['03', 'right', 'さすがなのだ！'], ['04', 'right', 'その調子なのだ！'],
+  ['05', 'wrong', 'おしいのだ…'], ['06', 'wrong', 'どんまいなのだ！'], ['07', 'wrong', 'あとでもう一回出すのだ。'],
+  ['08', 'start', '始めるのだ！'], ['09', 'start', '今日もがんばるのだ！'],
+  ['10', 'finish', 'おつかれさまなのだ！'], ['11', 'perfect', '全問正解！天才なのだ！'],
+  ['12', 'goal', '今日の目標クリアなのだ！えらいのだ！'],
+  ['13', 'pet', 'なでなでされたのだ。'], ['14', 'pet', 'ずんだ餅が食べたいのだ。'], ['15', 'pet', '合格するのだ！'], ['16', 'pet', 'ボクは勉強の応援係なのだ。'],
+  ['', 'morning', 'おはようなのだ！朝の頭はさえてるのだ。'], ['', 'day', 'こんにちはなのだ！ちょっとずつやるのだ。'],
+  ['', 'evening', 'おかえりなのだ！今日のぶん、やっちゃうのだ。'], ['', 'night', '夜ふかしはほどほどにするのだ。'],
+  ['', 'pet', '文法は例文ごと覚えるといいのだ。'], ['', 'pet', 'まちがえた問題こそ、のびしろなのだ。'],
+];
+const MIKE_KIND = { start: 'day', finish: 'right', perfect: 'right', goal: 'right' };
+
+function timeKind() {
+  const hr = new Date().getHours();
+  return hr < 5 ? 'night' : hr < 11 ? 'morning' : hr < 17 ? 'day' : hr < 22 ? 'evening' : 'night';
+}
+/** A line for the current character: { text, id } (id is '' when there is no voice for it). */
+export function line(kind) {
+  if (kind === 'greet') kind = timeKind();
+  if (chara() === 'mike') return { text: sayMike(MIKE_KIND[kind] || kind), id: '' };
+  const pool = ZLINES.filter((l) => l[1] === kind);
+  const l = pool.length ? pool[Math.floor(Math.random() * pool.length)] : ZLINES[12];
+  return { text: l[2], id: l[0] };
+}
+export const say = (kind) => line(kind).text;
+export const isNight = () => timeKind() === 'night';

@@ -1,6 +1,7 @@
 // N1 クイズ — screens and quiz flow.
 import { h, clear, mount, icon, loadJSON, saveJSON } from './ui.js';
-import { cat, say } from './mascot.js';
+import { face, figure, line, say, chara, setChara, CHARAS, isNight } from './mascot.js';
+import { speak, voiceOn, setVoice, voiceCount } from './voice.js';
 import { buildSession, grade, isDue, dayStr, shuffle, STEPS } from './srs.js';
 import * as store from './storage.js';
 import { initPlayer } from './player.js';
@@ -47,10 +48,11 @@ function toast(text) {
 const railCat = $('rail-cat');
 const railSay = $('rail-say');
 function mood(m, text, anim = 'bob') {
-  mount(railCat, cat(m, anim));
+  mount(railCat, figure(m, anim));
   if (text) railSay.textContent = text;
 }
-railCat.addEventListener('click', () => mood('happy', say('pet'), 'hop'));
+function pet() { const l = line('pet'); speak(l.id); return l.text; }
+railCat.addEventListener('click', () => mood('happy', pet(), 'hop'));
 
 function stats() {
   const p = store.get().progress;
@@ -98,9 +100,11 @@ function renderHome() {
   const s = stats();
   const today = todayCount();
   const streak = store.streak();
-  const heroCat = cat(s.due > 0 ? 'fight' : today >= prefs.goal ? 'happy' : 'normal', 'bob');
-  const bubble = h('div', { class: 'bubble' }, today >= prefs.goal ? '今日の目標クリア！えらい！' : s.due > 0 ? `復習が${s.due}問たまってるよ。` : say('greet'));
-  heroCat.addEventListener('click', () => { bubble.textContent = say('pet'); heroCat.classList.remove('bob'); heroCat.classList.add('hop'); });
+  const z = chara() === 'zunda';
+  const heroMood = s.due > 0 ? 'fight' : today >= prefs.goal ? 'happy' : isNight() ? 'sleepy' : 'normal';
+  const heroCat = face(heroMood, 'bob');
+  const bubble = h('div', { class: 'bubble' }, today >= prefs.goal ? (z ? '今日の目標クリアなのだ！えらいのだ！' : '今日の目標クリア！えらい！') : s.due > 0 ? (z ? `復習が${s.due}問たまってるのだ。` : `復習が${s.due}問たまってるよ。`) : say('greet'));
+  heroCat.addEventListener('click', () => { bubble.textContent = pet(); heroCat.classList.remove('bob'); heroCat.classList.add('hop'); });
   const fill = h('i');
   fill.style.width = `${Math.min(100, pct(today, prefs.goal))}%`;
   if (today >= prefs.goal) fill.dataset.full = '';
@@ -134,13 +138,16 @@ function renderHome() {
         h('b', null, t.name), h('small', null, `${seen.length} / ${qs.length}問`), h('span', { class: 'pct' }, r + w ? `${pct(r, r + w)}%` : '—'));
     })),
   );
-  mood(s.due > 0 ? 'fight' : 'normal', bubble.textContent);
+  mood(heroMood, bubble.textContent);
 }
 
 /* ---------- quiz ---------- */
 function start(mode) {
   const list = buildSession(questions, store.get().progress, mode, prefs.size);
   if (!list.length) { toast('出せる問題がありません'); return; }
+  const sl = line('start');
+  speak(sl.id);
+  mood('fight', sl.text);
   session = { mode, i: 0, items: list.map((q) => ({ q, order: shuffle([0, 1, 2, 3]), pick: null, ok: null, retry: false })) };
   tab = 'quiz';
   for (const b of document.querySelectorAll('.tab')) b.removeAttribute('aria-current');
@@ -239,7 +246,11 @@ function answer(oi) {
       session.items.splice(at, 0, { q, order: shuffle([0, 1, 2, 3]), pick: null, ok: null, retry: true });
     }
   }
-  mood(item.ok ? 'happy' : 'sad', say(item.ok ? 'right' : 'wrong'), item.ok ? 'hop' : 'droop');
+  // Hitting the daily goal beats the usual right/wrong line.
+  const l = !item.retry && todayCount() === prefs.goal ? line('goal') : line(item.ok ? 'right' : 'wrong');
+  item.say = l.text;
+  speak(l.id);
+  mood(item.ok ? 'happy' : 'sad', l.text, item.ok ? 'hop' : 'droop');
   renderQuiz();
 }
 
@@ -249,8 +260,8 @@ function feedback(item) {
   const e = store.get().progress[q.id];
   const wait = e ? STEPS[e.b] : 1;
   return h('section', { class: `fb card ${item.ok ? 'ok' : 'ng'}` },
-    h('div', { class: 'fb-head' }, cat(item.ok ? 'happy' : 'sad', item.ok ? 'hop' : 'droop'),
-      h('div', null, h('h2', null, item.ok ? 'せいかい！' : 'ざんねん…'),
+    h('div', { class: 'fb-head' }, face(item.ok ? 'happy' : 'sad', item.ok ? 'hop' : 'droop'),
+      h('div', null, h('h2', null, item.say || (item.ok ? 'せいかい！' : 'ざんねん…')),
         h('p', { class: 'hint' }, item.retry ? 'もう一度チャレンジ' : item.ok ? `つぎは${wait}日後に出します` : 'このあともう一度、明日も出します'))),
     h('p', { class: 'fb-ans' }, '正解：', q.type === 'narabe' ? q.full : q.opts[q.a]),
     h('p', { class: 'fb-exp' }, q.exp),
@@ -293,10 +304,13 @@ function finish() {
   session = null;
   tab = 'result';
   const m = rate === 100 ? 'wow' : rate >= 70 ? 'happy' : rate >= 40 ? 'normal' : 'sad';
-  const line = rate === 100 ? 'パーフェクト！' : rate >= 70 ? 'いい感じ！' : rate >= 40 ? 'おつかれさま！' : 'ここからのびるよ！';
+  const z = chara() === 'zunda';
+  const vl = line(rate === 100 ? 'perfect' : 'finish');
+  speak(vl.id);
+  const msg = rate === 100 ? (z ? vl.text : 'パーフェクト！') : rate >= 70 ? (z ? 'いい感じなのだ！' : 'いい感じ！') : rate >= 40 ? (z ? vl.text : 'おつかれさま！') : (z ? 'ここからのびるのだ！' : 'ここからのびるよ！');
   const short = (q) => (q.type === 'bunshou' ? `${passages.get(q.pid)?.title || ''} ${q.q}` : q.q.replace(/[{}]/g, ''));
   mount(screen, h('section', { class: 'result card' },
-    cat(m, 'hop'), h('h2', null, line),
+    figure(m, 'hop'), h('h2', null, msg),
     h('p', { class: 'score' }, String(right), h('small', null, ` / ${first.length}問`)),
     h('p', { class: 'muted' }, `正解率 ${rate}% ・ 今日 ${todayCount()}問`),
     h('div', { class: 'fb-next' },
@@ -304,7 +318,7 @@ function finish() {
       h('button', { class: 'btn primary', type: 'button', id: 'next', onclick: () => start(mode && mode.ids ? 'mix' : mode) }, 'もう1セット'),
       h('button', { class: 'btn', type: 'button', onclick: () => go('home') }, 'ホーム')),
     missed.length ? h('ul', { class: 'miss' }, missed.map((it) => h('li', null, `${short(it.q)} → ${it.q.type === 'narabe' ? it.q.full : it.q.opts[it.q.a]}`))) : null));
-  mood(m, line, 'hop');
+  mood(m, msg, 'hop');
   refreshWidgets();
 }
 
@@ -358,6 +372,8 @@ function seg(values, current, onPick, label = (v) => String(v)) {
 }
 
 function renderSettings() {
+  const voiceNote = h('small', null, 'ずんだもんの声（VOICEVOX）');
+  voiceCount().then((n) => { voiceNote.textContent = n ? `ずんだもんの声 ${n}種類（VOICEVOX）` : 'ボイスファイルはまだ入っていません'; });
   const exam = examInfo();
   const date = h('input', { type: 'date', value: exam.date, min: '2024-01-01', max: '2099-12-31', 'aria-label': '試験日' });
   const place = h('input', { type: 'text', value: exam.place, maxlength: '20', 'aria-label': '受験地' });
@@ -394,6 +410,9 @@ function renderSettings() {
 
   mount(screen, 
     h('section', { class: 'panel card' }, h('h2', null, 'テーマ'), themePicker()),
+    h('section', { class: 'panel card' }, h('h2', null, 'キャラクター'),
+      h('div', { class: 'field' }, h('span', null, 'おうえん係'), seg(CHARAS.map((c) => c[0]), chara(), (v) => { setChara(v); mood('happy', say('pet'), 'hop'); renderSettings(); }, (v) => CHARAS.find((c) => c[0] === v)[1])),
+      h('div', { class: 'field' }, h('span', null, 'ボイス', voiceNote), seg([true, false], voiceOn(), (v) => setVoice(v), (v) => (v ? 'オン' : 'オフ')))),
     h('section', { class: 'panel card' }, h('h2', null, 'べんきょう'),
       h('div', { class: 'field' }, h('span', null, '1日の目標'), seg([10, 20, 30, 50], prefs.goal, (v) => { prefs.goal = v; savePrefs(); refreshWidgets(); }, (v) => `${v}問`)),
       h('div', { class: 'field' }, h('span', null, '1セットの問題数'), seg([10, 20, 30], prefs.size, (v) => { prefs.size = v; savePrefs(); }, (v) => `${v}問`)),
@@ -409,7 +428,10 @@ function renderSettings() {
       h('p', { class: 'note' }, `問題 ${questions.length}問 ・ 学習データはこの端末に保存され、ログインするとあなたのアカウントだけに同期されます。`)),
     h('section', { class: 'panel card' }, h('h2', null, 'クレジット'),
       h('p', { class: 'note' }, '音楽：Open Goldberg Variations（Kimiko Ishizaka, CC0）、Musopen（CC0 / パブリックドメイン）、Wikimedia Commons の自由ライセンス録音。曲ごとの演奏者とライセンスは曲リストに表示しています。'),
-      h('p', { class: 'note' }, 'キャラクター（みけ・だるま・ぴよ）はこのアプリのために描いたオリジナルで、CC0 です。')),
+      h('p', { class: 'note' }, 'ずんだもん © SSS合同会社（東北ずん子・ずんだもんプロジェクト）。公式イラスト素材を、キャラクター利用ガイドラインに沿って個人・非商用で使用しています。 ',
+        h('a', { href: 'https://zunko.jp/guideline.html', target: '_blank', rel: 'noopener noreferrer' }, 'ガイドライン')),
+      h('p', { class: 'note' }, 'ボイス：VOICEVOX:ずんだもん'),
+      h('p', { class: 'note' }, 'みけ・だるま・ぴよはこのアプリのために描いたオリジナルで、CC0 です。')),
   );
 }
 
@@ -534,7 +556,7 @@ async function boot() {
     for (const p of ps) passages.set(p.id, p);
   } catch (e) {
     console.error(e);
-    mount(screen, h('section', { class: 'panel card center' }, cat('sad'), h('p', null, '問題を読み込めませんでした。'),
+    mount(screen, h('section', { class: 'panel card center' }, face('sad'), h('p', null, '問題を読み込めませんでした。'),
       h('button', { class: 'btn primary', type: 'button', onclick: () => location.reload() }, 'もう一度')));
     return;
   }

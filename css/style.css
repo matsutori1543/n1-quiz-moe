@@ -420,3 +420,13 @@ input[type=date], input[type=text] { min-height: 38px; padding: 4px 10px; backgr
 .screen.slide-back { animation: slideback .24s ease-out; }
 @keyframes slideback { from { transform: translateX(-60%); opacity: 0; } }
 .q-top .btn:disabled { opacity: .3; }
+
+/* ずんだもん pictures */
+.mascot.zun { display: inline-block; flex: none; user-select: none; }
+.mascot.zun img { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; pointer-events: none; }
+.mascot.zun.face { border-radius: 50%; overflow: hidden; background: var(--soft); border: var(--line) solid var(--ink); }
+.fb-head .mascot.zun { width: 68px; height: 68px; }
+.mascot.zun.fig { width: auto; height: 230px; max-width: 100%; }
+.mascot.zun.fig img { width: auto; filter: drop-shadow(3px 3px 0 color-mix(in srgb, var(--shadow) 35%, transparent)); }
+.result .mascot.zun.fig { height: 240px; }
+.rail-foot .mascot.zun.fig { height: 250px; margin-left: 0; }

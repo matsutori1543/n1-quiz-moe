@@ -37,3 +37,11 @@ JLPT N1 の語彙・文法クイズ。スマホとパソコンで使える、ビ
 ## 問題を足すには
 
 `data/vocab.json` / `data/grammar.json` に同じ形で追加します。`id` は重ならないようにしてください（学習データが `id` にひもづきます）。
+
+## ずんだもんのボイスを入れるには
+
+1. [VOICEVOX](https://voicevox.hiroshiba.jp/) で `zundamon_lines.txt`（16行。順番は `js/mascot.js` の `ZLINES` と同じ）を「テキスト読み込み」し、話者をずんだもんにする
+2. 「音声書き出し → 全部書き出し」で 16 個のファイルを書き出す
+3. `voice/01.mp3` 〜 `voice/16.mp3` として置き、`voice/list.json` の `files` に `"01"` 〜 `"16"` を並べる
+
+クレジット「VOICEVOX:ずんだもん」はアプリの「せってい → クレジット」に表示しています。
