@@ -1,9 +1,9 @@
 // Applies the saved theme before the page paints (plain script, loaded in <head>).
 (function () {
   var KEY = 'n1q-theme';
-  var LIST = [['mochi', 'もち'], ['ramune', 'ラムネ'], ['sakura', 'さくら'], ['yofukashi', 'よふかし'], ['kaitou', '怪盗']];
+  var LIST = [['mochi', 'もち'], ['ramune', 'ラムネ'], ['sakura', 'さくら'], ['yofukashi', 'よふかし'], ['kaitou', '怪盗'], ['zunda', 'ずんだ']];
   var OLD = { sunflower: 'mochi', pink: 'sakura', red: 'kaitou' };
-  var BAR = { mochi: '#fff3dc', ramune: '#dcf3fb', sakura: '#ffe9f0', yofukashi: '#191b33', kaitou: '#d5101e' };
+  var BAR = { mochi: '#fff3dc', ramune: '#dcf3fb', sakura: '#ffe9f0', yofukashi: '#191b33', kaitou: '#d5101e', zunda: '#e6f5d0' };
   function valid(t) { return LIST.some(function (x) { return x[0] === t; }); }
   var current = 'mochi';
   try {

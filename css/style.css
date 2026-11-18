@@ -31,6 +31,13 @@
   --cat: #f4f0ff; --cat-or: #ffc978; --cat-br: #6b5a9c;
   color-scheme: dark;
 }
+:root[data-theme="zunda"] {
+  --bg: #e6f5d0; --bg2: #cbe9a6; --card: #fffff6; --soft: #eff8e2;
+  --ink: #2c4a1c; --text: #2c4a1c; --muted: #7a9563;
+  --a1: #7bd447; --a1-ink: #1e3611; --a2: #ffa6d5; --a3: #e2f77e;
+  --ok: #2f9e5a; --ok-bg: #dff5e4; --shadow: #2c4a1c;
+  --cat-or: #ffb35c; --cat-br: #5d7a3c; --blush: #ff9ec8;
+}
 :root[data-theme="kaitou"] {
   --bg: #d5101e; --bg2: #a80b16; --card: #ffffff; --soft: #f3f3f3;
   --ink: #0a0a0a; --text: #0a0a0a; --muted: #666;
@@ -47,6 +54,13 @@ body {
   background: var(--bg) radial-gradient(var(--bg2) 2.2px, transparent 2.6px) 0 0 / 22px 22px;
   overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
 }
+:root[data-theme="zunda"] body {
+  background:
+    radial-gradient(ellipse 7px 5px at 12px 12px, var(--bg2) 98%, transparent) 0 0 / 46px 46px,
+    radial-gradient(ellipse 7px 5px at 35px 35px, color-mix(in srgb, var(--a2) 35%, var(--bg)) 98%, transparent) 0 0 / 46px 46px,
+    var(--bg);
+}
+:root[data-theme="zunda"] .tab[aria-current="page"], :root[data-theme="zunda"] .nav .tab[aria-current="page"] { background: var(--a1); color: var(--a1-ink); }
 :root[data-theme="kaitou"] body {
   background: var(--bg) repeating-linear-gradient(-58deg, transparent 0 46px, var(--bg2) 46px 60px);
 }
@@ -328,6 +342,7 @@ input[type=date], input[type=text] { min-height: 38px; padding: 4px 10px; backgr
 .sw[data-t="ramune"] i { background: linear-gradient(90deg, #dcf3fb 34%, #2f9fe0 34% 67%, #ffd84d 67%); }
 .sw[data-t="sakura"] i { background: linear-gradient(90deg, #ffe9f0 34%, #ff6f9c 34% 67%, #a5dba9 67%); }
 .sw[data-t="yofukashi"] i { background: linear-gradient(90deg, #191b33 34%, #ffd66b 34% 67%, #9d8cff 67%); }
+.sw[data-t="zunda"] i { background: linear-gradient(90deg, #e6f5d0 34%, #7bd447 34% 67%, #ffa6d5 67%); }
 .sw[data-t="kaitou"] i { background: linear-gradient(115deg, #d5101e 34%, #0a0a0a 34% 67%, #fff 67%); }
 .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
 .toggles .btn[aria-pressed="true"] { background: var(--a2); color: var(--ink); }
